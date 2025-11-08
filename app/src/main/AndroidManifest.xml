@@ -20,7 +20,11 @@
 
         <activity
             android:name=".ViewerActivity"
-            android:exported="true">
+            android:exported="true"
+            android:parentActivityName=".MainActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".MainActivity" />
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -38,26 +42,56 @@
         <activity
             android:name=".NetworkBookActivity"
             android:exported="false"
-            android:label="@string/download_books" />
+            android:label="@string/download_books"
+            android:parentActivityName=".MainActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".MainActivity" />
+        </activity>
 
         <activity
             android:name=".SettingsActivity"
             android:exported="false"
-            android:label="@string/settings" />
+            android:label="@string/settings"
+            android:parentActivityName=".MainActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".MainActivity" />
+        </activity>
 
         <activity
             android:name=".AboutActivity"
             android:exported="false"
-            android:label="@string/about" />
+            android:label="@string/about"
+            android:parentActivityName=".MainActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".MainActivity" />
+        </activity>
 
         <activity
             android:name=".CollectionsActivity"
             android:exported="false"
-            android:label="@string/collections" />
+            android:label="@string/collections"
+            android:parentActivityName=".MainActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".MainActivity" />
+        </activity>
 
         <activity
             android:name=".CollectionBooksActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:parentActivityName=".CollectionsActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".CollectionsActivity" />
+        </activity>
+
+        <activity
+            android:name=".EditBookActivity"
+            android:exported="false"
+            android:label="@string/edit_book" />
 
     </application>
 

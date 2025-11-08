@@ -13,76 +13,79 @@
         android:layout_height="wrap_content"
         android:padding="16dp">
 
-        <ImageView
-            android:id="@+id/ivBookmarkIcon"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:src="@android:drawable/btn_star_big_on"
-            android:contentDescription="@string/bookmark"
+        <View
+            android:id="@+id/viewColorIndicator"
+            android:layout_width="4dp"
+            android:layout_height="0dp"
+            android:background="#FFFF00"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:tint="?attr/colorPrimary" />
+            app:layout_constraintBottom_toBottomOf="parent" />
 
         <TextView
-            android:id="@+id/tvPageNumber"
+            android:id="@+id/tvHighlightText"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
+            android:layout_marginStart="12dp"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="?android:attr/textColorPrimary"
-            tools:text="Page 42"
-            app:layout_constraintStart_toEndOf="@id/ivBookmarkIcon"
-            app:layout_constraintEnd_toStartOf="@id/btnEditBookmark"
+            android:maxLines="3"
+            android:ellipsize="end"
+            tools:text="This is the highlighted text from the book"
+            app:layout_constraintStart_toEndOf="@id/viewColorIndicator"
+            app:layout_constraintEnd_toStartOf="@id/btnDelete"
             app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
-            android:id="@+id/tvBookmarkNote"
+            android:id="@+id/tvNote"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
+            android:layout_marginStart="12dp"
             android:layout_marginTop="4dp"
             android:textSize="14sp"
             android:textColor="?android:attr/textColorSecondary"
             android:maxLines="2"
             android:ellipsize="end"
-            tools:text="Important section to remember"
-            app:layout_constraintStart_toEndOf="@id/ivBookmarkIcon"
-            app:layout_constraintEnd_toStartOf="@id/btnEditBookmark"
-            app:layout_constraintTop_toBottomOf="@id/tvPageNumber" />
+            android:visibility="gone"
+            tools:visibility="visible"
+            tools:text="My note about this highlight"
+            app:layout_constraintStart_toEndOf="@id/viewColorIndicator"
+            app:layout_constraintEnd_toStartOf="@id/btnDelete"
+            app:layout_constraintTop_toBottomOf="@id/tvHighlightText" />
+
+        <TextView
+            android:id="@+id/tvPageInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="4dp"
+            android:textSize="12sp"
+            android:textColor="?android:attr/textColorTertiary"
+            tools:text="Page 42"
+            app:layout_constraintStart_toEndOf="@id/viewColorIndicator"
+            app:layout_constraintTop_toBottomOf="@id/tvNote" />
 
         <TextView
             android:id="@+id/tvTimestamp"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginTop="4dp"
+            android:layout_marginStart="8dp"
             android:textSize="12sp"
             android:textColor="?android:attr/textColorTertiary"
-            tools:text="2 hours ago"
-            app:layout_constraintStart_toEndOf="@id/ivBookmarkIcon"
-            app:layout_constraintEnd_toStartOf="@id/btnEditBookmark"
-            app:layout_constraintTop_toBottomOf="@id/tvBookmarkNote" />
+            tools:text="Dec 25, 2023 14:30"
+            app:layout_constraintStart_toEndOf="@id/tvPageInfo"
+            app:layout_constraintEnd_toStartOf="@id/btnDelete"
+            app:layout_constraintTop_toTopOf="@id/tvPageInfo"
+            app:layout_constraintBottom_toBottomOf="@id/tvPageInfo" />
 
         <ImageButton
-            android:id="@+id/btnEditBookmark"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_edit"
-            android:contentDescription="@string/edit_note"
-            app:layout_constraintEnd_toStartOf="@id/btnDeleteBookmark"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:tint="?android:attr/textColorSecondary" />
-
-        <ImageButton
-            android:id="@+id/btnDeleteBookmark"
+            android:id="@+id/btnDelete"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_menu_delete"
-            android:contentDescription="@string/delete_book"
+            android:contentDescription="@string/delete_highlight"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"

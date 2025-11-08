@@ -9,20 +9,23 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SearchView
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.google.android.material.snackbar.Snackbar
 import com.rifters.ebookreader.databinding.ActivityMainBinding
-import com.rifters.ebookreader.util.PreferencesManager
+import com.rifters.ebookreader.util.FileValidator
 import com.rifters.ebookreader.viewmodel.BookViewModel
 import com.rifters.ebookreader.viewmodel.CollectionViewModel
 import com.rifters.ebookreader.viewmodel.SyncViewModel
+import com.rifters.ebookreader.viewmodel.SortOrder
+import com.rifters.ebookreader.viewmodel.FilterOption
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 
 class MainActivity : AppCompatActivity() {
     
@@ -31,7 +34,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var collectionViewModel: CollectionViewModel
     private lateinit var syncViewModel: SyncViewModel
     private lateinit var bookAdapter: BookAdapter
-    private lateinit var prefsManager: PreferencesManager
+    private var searchView: SearchView? = null
     private var syncMenuItem: MenuItem? = null
     
     private val filePickerLauncher = registerForActivityResult(
@@ -45,13 +48,11 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        prefsManager = PreferencesManager(this)
-        
         setupToolbar()
         setupRecyclerView()
         setupViewModel()
-        setupFab()
         setupSyncObservers()
+        setupFab()
     }
     
     private fun setupToolbar() {
@@ -89,30 +90,33 @@ class MainActivity : AppCompatActivity() {
         // Observe sync status
         syncViewModel.syncStatus.observe(this) { status ->
             when (status) {
+                is SyncViewModel.SyncStatus.Idle -> {
+                    syncMenuItem?.isEnabled = true
+                }
                 is SyncViewModel.SyncStatus.InProgress -> {
-                    showSyncSnackbar(status.message)
+                    syncMenuItem?.isEnabled = false
+                    Toast.makeText(this, status.message, Toast.LENGTH_SHORT).show()
                 }
                 is SyncViewModel.SyncStatus.Success -> {
-                    showSyncSnackbar(status.message)
-                }
-                is SyncViewModel.SyncStatus.Error -> {
-                    showSyncSnackbar(status.message)
+                    syncMenuItem?.isEnabled = true
+                    Toast.makeText(this, status.message, Toast.LENGTH_SHORT).show()
                 }
                 is SyncViewModel.SyncStatus.PartialSuccess -> {
-                    showSyncSnackbar(status.message)
+                    syncMenuItem?.isEnabled = true
+                    Toast.makeText(this, status.message, Toast.LENGTH_SHORT).show()
                 }
-                else -> {}
+                is SyncViewModel.SyncStatus.Error -> {
+                    syncMenuItem?.isEnabled = true
+                    Toast.makeText(this, status.message, Toast.LENGTH_LONG).show()
+                }
             }
         }
         
-        // Observe pending sync count to update menu icon
         syncViewModel.pendingSyncCount.observe(this) { count ->
-            syncMenuItem?.let { menuItem ->
-                if (count > 0 && prefsManager.isSyncEnabled()) {
-                    menuItem.title = getString(R.string.pending_sync, count)
-                } else {
-                    menuItem.title = getString(R.string.sync)
-                }
+            if (count > 0) {
+                syncMenuItem?.title = "${getString(R.string.sync)} ($count)"
+            } else {
+                syncMenuItem?.title = getString(R.string.sync)
             }
         }
     }
@@ -139,37 +143,105 @@ class MainActivity : AppCompatActivity() {
     private fun handleSelectedFile(uri: Uri) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                // Open input stream
                 val inputStream = contentResolver.openInputStream(uri)
                 if (inputStream == null) {
                     withContext(Dispatchers.Main) {
                         Toast.makeText(
                             this@MainActivity,
-                            "Failed to open file",
-                            Toast.LENGTH_SHORT
+                            getString(R.string.error_opening_file),
+                            Toast.LENGTH_LONG
                         ).show()
                     }
                     return@launch
                 }
                 
-                // Get file name and create local copy
+                // Get file name
                 val fileName = getFileName(uri) ?: "book_${System.currentTimeMillis()}"
                 val storageDir = getExternalFilesDir(null) ?: filesDir
+                
+                // Check storage space (estimate 2x file size needed)
+                val estimatedSize = try {
+                    inputStream.available().toLong() * 2
+                } catch (e: Exception) {
+                    100 * 1024 * 1024L // Default to 100MB if we can't determine
+                }
+                
+                if (!FileValidator.hasEnoughStorage(estimatedSize, storageDir)) {
+                    inputStream.close()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            getString(R.string.error_storage_full),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    return@launch
+                }
+                
                 val file = File(storageDir, fileName)
                 
                 // Copy file to app storage
-                FileOutputStream(file).use { outputStream ->
-                    inputStream.copyTo(outputStream)
+                try {
+                    FileOutputStream(file).use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                } catch (e: IOException) {
+                    inputStream.close()
+                    file.delete() // Clean up partial file
+                    throw e
                 }
                 inputStream.close()
                 
+                // Validate the copied file
+                val validationResult = FileValidator.validateFile(file, this@MainActivity)
+                if (validationResult is FileValidator.ValidationResult.Invalid) {
+                    file.delete() // Clean up invalid file
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            validationResult.errorMessage,
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    return@launch
+                }
+                
+                // Validate format-specific structure
+                val fileExtension = fileName.substringAfterLast('.', "").lowercase()
+                val isValidFormat = when (fileExtension) {
+                    "pdf" -> FileValidator.validatePdfFile(file)
+                    "epub" -> FileValidator.validateEpubFile(file)
+                    "mobi" -> FileValidator.validateMobiFile(file)
+                    "cbz" -> FileValidator.validateCbzFile(file)
+                    "txt" -> true // TXT files don't need special validation
+                    "cbr" -> true // CBR validation is complex, handled in viewer
+                    else -> false
+                }
+                
+                if (!isValidFormat) {
+                    file.delete() // Clean up invalid file
+                    withContext(Dispatchers.Main) {
+                        val errorMsg = when (fileExtension) {
+                            "pdf" -> getString(R.string.error_pdf_damaged)
+                            "epub" -> getString(R.string.error_epub_invalid)
+                            "mobi" -> getString(R.string.error_mobi_invalid)
+                            "cbz" -> getString(R.string.error_cbz_invalid)
+                            else -> getString(R.string.error_unsupported_format)
+                        }
+                        Toast.makeText(this@MainActivity, errorMsg, Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+                
                 // Determine MIME type
-                val mimeType = when {
-                    fileName.endsWith(".pdf", ignoreCase = true) -> "application/pdf"
-                    fileName.endsWith(".epub", ignoreCase = true) -> "application/epub+zip"
-                    fileName.endsWith(".mobi", ignoreCase = true) -> "application/x-mobipocket-ebook"
-                    fileName.endsWith(".cbz", ignoreCase = true) -> "application/vnd.comicbook+zip"
-                    fileName.endsWith(".cbr", ignoreCase = true) -> "application/vnd.comicbook-rar"
-                    fileName.endsWith(".txt", ignoreCase = true) -> "text/plain"
+                val mimeType = when (fileExtension) {
+                    "pdf" -> "application/pdf"
+                    "epub" -> "application/epub+zip"
+                    "mobi" -> "application/x-mobipocket-ebook"
+                    "cbz" -> "application/vnd.comicbook+zip"
+                    "cbr" -> "application/vnd.comicbook-rar"
+                    "txt" -> "text/plain"
                     else -> contentResolver.getType(uri) ?: "application/octet-stream"
                 }
                 
@@ -192,12 +264,26 @@ class MainActivity : AppCompatActivity() {
                         Toast.LENGTH_SHORT
                     ).show()
                 }
+            } catch (e: OutOfMemoryError) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.error_file_too_large, "100MB"),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } catch (e: IOException) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    val errorMsg = FileValidator.getErrorMessage(e, this@MainActivity)
+                    Toast.makeText(this@MainActivity, errorMsg, Toast.LENGTH_LONG).show()
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
                     Toast.makeText(
                         this@MainActivity,
-                        "Error adding book: ${e.message}",
+                        getString(R.string.error_adding_book, e.message ?: "Unknown error"),
                         Toast.LENGTH_LONG
                     ).show()
                 }
@@ -220,18 +306,46 @@ class MainActivity : AppCompatActivity() {
     
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
-        syncMenuItem = menu.findItem(R.id.action_sync)
         
-        // Update sync menu visibility based on sync enabled status
-        syncMenuItem?.isVisible = prefsManager.isSyncEnabled()
+        // Setup SearchView
+        val searchItem = menu.findItem(R.id.action_search)
+        searchView = searchItem.actionView as? SearchView
+        searchView?.apply {
+            queryHint = getString(R.string.search_hint)
+            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+                override fun onQueryTextSubmit(query: String?): Boolean {
+                    return false
+                }
+                
+                override fun onQueryTextChange(newText: String?): Boolean {
+                    bookViewModel.setSearchQuery(newText ?: "")
+                    return true
+                }
+            })
+        }
+        
+        // Store sync menu item reference
+        syncMenuItem = menu.findItem(R.id.action_sync)
         
         return true
     }
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_search -> {
+                // Handled by SearchView
+                true
+            }
+            R.id.action_sort -> {
+                showSortDialog()
+                true
+            }
+            R.id.action_filter -> {
+                showFilterDialog()
+                true
+            }
             R.id.action_sync -> {
-                handleSyncAction()
+                syncViewModel.fullSync()
                 true
             }
             R.id.action_collections -> {
@@ -258,24 +372,62 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    private fun handleSyncAction() {
-        if (!prefsManager.isSyncEnabled()) {
-            showSyncSnackbar(getString(R.string.sync_disabled))
-            return
+    private fun showSortDialog() {
+        val currentSort = bookViewModel.getSortOrder()
+        val sortOptions = arrayOf(
+            getString(R.string.sort_by_recently_read),
+            getString(R.string.sort_by_title),
+            getString(R.string.sort_by_author)
+        )
+        val checkedItem = when (currentSort) {
+            SortOrder.RECENTLY_READ -> 0
+            SortOrder.TITLE -> 1
+            SortOrder.AUTHOR -> 2
         }
         
-        // Perform full sync
-        syncViewModel.fullSync()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.sort_by)
+            .setSingleChoiceItems(sortOptions, checkedItem) { dialog, which ->
+                val sortOrder = when (which) {
+                    0 -> SortOrder.RECENTLY_READ
+                    1 -> SortOrder.TITLE
+                    2 -> SortOrder.AUTHOR
+                    else -> SortOrder.RECENTLY_READ
+                }
+                bookViewModel.setSortOrder(sortOrder)
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
     
-    private fun showSyncSnackbar(message: String) {
-        Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT).show()
-    }
-    
-    override fun onResume() {
-        super.onResume()
-        // Update sync menu visibility when returning from settings
-        invalidateOptionsMenu()
+    private fun showFilterDialog() {
+        val currentFilter = bookViewModel.getFilterOption()
+        val filterOptions = arrayOf(
+            getString(R.string.filter_all),
+            getString(R.string.filter_completed),
+            getString(R.string.filter_not_completed)
+        )
+        val checkedItem = when (currentFilter) {
+            FilterOption.ALL -> 0
+            FilterOption.COMPLETED -> 1
+            FilterOption.NOT_COMPLETED -> 2
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle(R.string.filter_by)
+            .setSingleChoiceItems(filterOptions, checkedItem) { dialog, which ->
+                val filterOption = when (which) {
+                    0 -> FilterOption.ALL
+                    1 -> FilterOption.COMPLETED
+                    2 -> FilterOption.NOT_COMPLETED
+                    else -> FilterOption.ALL
+                }
+                bookViewModel.setFilterOption(filterOption)
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
     
     private fun showAddToCollectionDialog(book: Book) {
@@ -301,9 +453,6 @@ class MainActivity : AppCompatActivity() {
                         checkedItems[index] = collectionViewModel.isBookInCollection(book.id, collection.id)
                     }
                     
-                    // Store initial state to compare later
-                    val initialState = checkedItems.copyOf()
-                    
                     withContext(Dispatchers.Main) {
                         AlertDialog.Builder(this@MainActivity)
                             .setTitle(R.string.select_collections)
@@ -311,19 +460,13 @@ class MainActivity : AppCompatActivity() {
                                 checkedItems[which] = isChecked
                             }
                             .setPositiveButton(android.R.string.ok) { _, _ ->
-                                // Only add or remove book when the state has actually changed
+                                // Add or remove book from collections based on selection
                                 collections.forEachIndexed { index, collection ->
-                                    val wasInCollection = initialState[index]
-                                    val isNowInCollection = checkedItems[index]
-                                    
-                                    if (!wasInCollection && isNowInCollection) {
-                                        // Book was not in collection, but now should be - add it
+                                    if (checkedItems[index]) {
                                         collectionViewModel.addBookToCollection(book.id, collection.id)
-                                    } else if (wasInCollection && !isNowInCollection) {
-                                        // Book was in collection, but now should not be - remove it
+                                    } else {
                                         collectionViewModel.removeBookFromCollection(book.id, collection.id)
                                     }
-                                    // If wasInCollection == isNowInCollection, no change needed
                                 }
                                 Toast.makeText(
                                     this@MainActivity,

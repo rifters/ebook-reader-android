@@ -52,6 +52,26 @@
     <string name="delete_bookmark">Delete Bookmark</string>
     <string name="delete_bookmark_confirmation">Are you sure you want to delete this bookmark?</string>
     <string name="pdf_page_content_description">PDF page content</string>
+    <string name="add_note">Add Note</string>
+    <string name="edit_note">Edit Note</string>
+    <string name="note_hint">Enter your note here…</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="note_updated">Note updated</string>
+    <string name="add_bookmark_with_note">Add Bookmark with Note</string>
+    <string name="bookmark_note_optional">Note (optional)</string>
+    
+    <!-- Highlights -->
+    <string name="highlights">Highlights</string>
+    <string name="highlight_text">Highlight Text</string>
+    <string name="view_highlights">View Highlights</string>
+    <string name="no_highlights">No highlights yet</string>
+    <string name="highlight_added">Highlight added</string>
+    <string name="highlight_removed">Highlight removed</string>
+    <string name="delete_highlight">Delete Highlight</string>
+    <string name="delete_highlight_confirmation">Are you sure you want to delete this highlight?</string>
+    <string name="highlight_color">Highlight Color</string>
+    <string name="highlight_note">Note (optional)</string>
     
     <!-- Reading Settings -->
     <string name="reading_settings">Reading Settings</string>
@@ -98,4 +118,49 @@
     <string name="sync_failed">Sync failed</string>
     <string name="sync_disabled">Cloud sync is disabled. Enable it in Settings.</string>
     <string name="pending_sync">%1$d items pending sync</string>
+    
+    <!-- Edit Book -->
+    <string name="edit_book">Edit Book</string>
+    <string name="book_cover">Book Cover</string>
+    <string name="cover_image">Cover Image</string>
+    <string name="change_cover">Change Cover</string>
+    <string name="book_updated">Book updated successfully</string>
+    <string name="error_updating_book">Error updating book</string>
+    <string name="title_required">Title is required</string>
+    <string name="author_required">Author is required</string>
+    
+    <!-- Search, Sort, and Filter -->
+    <string name="search_books">Search Books</string>
+    <string name="search_hint">Search by title or author</string>
+    <string name="sort_by">Sort By</string>
+    <string name="filter_by">Filter By</string>
+    <string name="sort_by_title">Title</string>
+    <string name="sort_by_author">Author</string>
+    <string name="sort_by_recently_read">Recently Read</string>
+    <string name="filter_all">All Books</string>
+    <string name="filter_completed">Completed</string>
+    <string name="filter_not_completed">Not Completed</string>
+    <string name="clear_search">Clear Search</string>
+    
+    <!-- Navigation -->
+    <string name="library">Library</string>
+    <string name="app_settings">App Settings</string>
+    
+    <!-- Error Messages -->
+    <string name="error_file_not_found">File not found. The file may have been deleted or moved.</string>
+    <string name="error_file_corrupted">File appears to be corrupted or damaged. Please try a different file.</string>
+    <string name="error_file_too_large">File is too large. Maximum supported size is %1$s.</string>
+    <string name="error_file_empty">File is empty or has no content.</string>
+    <string name="error_invalid_format">Invalid file format. Expected %1$s file.</string>
+    <string name="error_no_read_permission">Cannot read file. Check file permissions.</string>
+    <string name="error_storage_full">Not enough storage space available.</string>
+    <string name="error_network_timeout">Network request timed out. Please try again.</string>
+    <string name="error_network_connection">Cannot connect to server. Check your internet connection.</string>
+    <string name="error_server_error">Server error. Please try again later.</string>
+    <string name="error_pdf_damaged">PDF file is damaged or encrypted.</string>
+    <string name="error_epub_invalid">EPUB file structure is invalid.</string>
+    <string name="error_mobi_invalid">MOBI file format is not supported or invalid.</string>
+    <string name="error_cbz_invalid">CBZ archive is corrupted or contains no images.</string>
+    <string name="error_cbr_invalid">CBR archive is corrupted or contains no images.</string>
+    <string name="error_adding_book">Failed to add book to library: %1$s</string>
 </resources>

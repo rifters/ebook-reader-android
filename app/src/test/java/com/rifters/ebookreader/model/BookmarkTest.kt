@@ -66,4 +66,65 @@ class BookmarkTest {
         assertEquals(bookmark1.bookId, bookmark2.bookId)
         assertNotEquals(bookmark1.page, bookmark2.page)
     }
+    
+    @Test
+    fun `bookmark with note can be created`() {
+        val note = "This is an important section about the main character's motivation"
+        val bookmark = Bookmark(
+            bookId = 10,
+            page = 5,
+            note = note
+        )
+        
+        assertEquals(note, bookmark.note)
+    }
+    
+    @Test
+    fun `bookmark note can be updated`() {
+        val initialNote = "Initial note"
+        val updatedNote = "Updated note with more details"
+        
+        val bookmark = Bookmark(
+            id = 1,
+            bookId = 10,
+            page = 5,
+            note = initialNote
+        )
+        
+        val updatedBookmark = bookmark.copy(note = updatedNote)
+        
+        assertEquals(initialNote, bookmark.note)
+        assertEquals(updatedNote, updatedBookmark.note)
+    }
+    
+    @Test
+    fun `bookmark note can be removed`() {
+        val bookmark = Bookmark(
+            id = 1,
+            bookId = 10,
+            page = 5,
+            note = "Some note"
+        )
+        
+        val bookmarkWithoutNote = bookmark.copy(note = null)
+        
+        assertNotNull(bookmark.note)
+        assertNull(bookmarkWithoutNote.note)
+    }
+    
+    @Test
+    fun `bookmark with long note`() {
+        val longNote = "This is a very long note that might contain a lot of details " +
+                "about the content on this page. It could include quotes, thoughts, " +
+                "or references to other parts of the book."
+        
+        val bookmark = Bookmark(
+            bookId = 10,
+            page = 5,
+            note = longNote
+        )
+        
+        assertEquals(longNote, bookmark.note)
+        assertTrue(bookmark.note!!.length > 100)
+    }
 }

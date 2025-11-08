@@ -9,10 +9,11 @@ import com.rifters.ebookreader.model.Bookmark
 import com.rifters.ebookreader.model.BookCollectionCrossRef
 import com.rifters.ebookreader.model.Collection
 import com.rifters.ebookreader.model.SyncStatus
+import com.rifters.ebookreader.model.Highlight
 
 @Database(
-    entities = [Book::class, Bookmark::class, Collection::class, BookCollectionCrossRef::class, SyncStatus::class], 
-    version = 4, 
+    entities = [Book::class, Bookmark::class, Collection::class, BookCollectionCrossRef::class, SyncStatus::class, Highlight::class], 
+    version = 5, 
     exportSchema = false
 )
 abstract class BookDatabase : RoomDatabase() {
@@ -21,6 +22,7 @@ abstract class BookDatabase : RoomDatabase() {
     abstract fun bookmarkDao(): BookmarkDao
     abstract fun collectionDao(): CollectionDao
     abstract fun syncDao(): SyncDao
+    abstract fun highlightDao(): HighlightDao
     
     companion object {
         @Volatile

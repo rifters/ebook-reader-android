@@ -227,13 +227,13 @@ Polished experience with subtle micro-interactions:
 - [ ] **Import/Export** - Backup and restore library data
 
 #### Reading Features
-- [ ] **Advanced EPUB Rendering** - Better formatting and image support
-- [ ] **Table of Contents** - Navigate chapters easily
-- [ ] **Text-to-Speech** - Listen to books with TTS engine
-- [ ] **Highlighting** - Mark and annotate text passages
-- [ ] **Dictionary Integration** - Look up words while reading
-- [ ] **Night Mode Toggle** - Quick toggle in viewer
-- [ ] **Page Flip Animations** - Realistic page turning effects
+- [x] **Advanced EPUB Rendering** - Better formatting and image support
+- [x] **Table of Contents** - Navigate chapters easily
+- [x] **Text-to-Speech** - Listen to books with TTS engine
+- [x] **Highlighting** - Mark and annotate text passages
+- [x] **Dictionary Integration** - Look up words while reading
+- [x] **Night Mode Toggle** - Quick toggle in viewer
+- [x] **Page Flip Animations** - Realistic page turning effects
 - [ ] **Split-Screen Reading** - Compare pages or translations
 
 #### Library Management

@@ -7,6 +7,12 @@
         android:icon="@android:drawable/ic_menu_view"
         android:title="@string/library"
         app:showAsAction="ifRoom" />
+    
+    <item
+        android:id="@+id/action_table_of_contents"
+        android:icon="@android:drawable/ic_menu_agenda"
+        android:title="@string/table_of_contents"
+        app:showAsAction="ifRoom" />
 
     <item
         android:id="@+id/action_view_bookmarks"
@@ -25,6 +31,12 @@
         android:icon="@android:drawable/ic_media_play"
         android:title="@string/tts_play"
         app:showAsAction="ifRoom" />
+    
+    <item
+        android:id="@+id/action_toggle_night_mode"
+        android:icon="@android:drawable/ic_menu_day"
+        android:title="@string/toggle_night_mode"
+        app:showAsAction="never" />
 
     <item
         android:id="@+id/action_customize_reading"

@@ -168,4 +168,23 @@
     <string name="error_cbz_invalid">CBZ archive is corrupted or contains no images.</string>
     <string name="error_cbr_invalid">CBR archive is corrupted or contains no images.</string>
     <string name="error_adding_book">Failed to add book to library: %1$s</string>
+    
+    <!-- Table of Contents -->
+    <string name="no_table_of_contents">No table of contents available</string>
+    <string name="chapter_format">Chapter %1$d</string>
+    
+    <!-- Dictionary -->
+    <string name="lookup_word">Look up word</string>
+    <string name="define_word">Define "%1$s"</string>
+    <string name="no_dictionary_app">No dictionary app found</string>
+    <string name="select_text_to_lookup">Select text to look up</string>
+    
+    <!-- Night Mode -->
+    <string name="night_mode_on">Night mode enabled</string>
+    <string name="night_mode_off">Night mode disabled</string>
+    <string name="toggle_night_mode">Toggle Night Mode</string>
+    
+    <!-- Page Flip Animation -->
+    <string name="page_flip_animation">Page flip animation</string>
+    <string name="enable_page_flip">Enable page flip animations</string>
 </resources>

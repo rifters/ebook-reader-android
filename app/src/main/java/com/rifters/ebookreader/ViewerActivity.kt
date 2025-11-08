@@ -119,6 +119,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 showBookmarks()
                 true
             }
+            R.id.action_view_highlights -> {
+                showHighlights()
+                true
+            }
             R.id.action_tts_play -> {
                 toggleTTS()
                 true
@@ -440,8 +444,19 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                                 super.onPageFinished(view, url)
                                 val preferences = preferencesManager.getReadingPreferences()
                                 applyWebViewStyles(preferences)
+                                injectTextSelectionScript()
                             }
                         }
+                        
+                        // Add JavaScript interface for handling text selection
+                        webView.addJavascriptInterface(object {
+                            @android.webkit.JavascriptInterface
+                            fun onTextSelected(text: String) {
+                                lifecycleScope.launch(Dispatchers.Main) {
+                                    saveHighlight(text, currentPage, 0)
+                                }
+                            }
+                        }, "AndroidInterface")
                         
                         webView.loadDataWithBaseURL(null, contentHtml, "text/html", "UTF-8", null)
                         currentTextContent = contentHtml // Store for TTS
@@ -508,8 +523,19 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                                 super.onPageFinished(view, url)
                                 val preferences = preferencesManager.getReadingPreferences()
                                 applyWebViewStyles(preferences)
+                                injectTextSelectionScript()
                             }
                         }
+                        
+                        // Add JavaScript interface for handling text selection
+                        webView.addJavascriptInterface(object {
+                            @android.webkit.JavascriptInterface
+                            fun onTextSelected(text: String) {
+                                lifecycleScope.launch(Dispatchers.Main) {
+                                    saveHighlight(text, currentPage, 0)
+                                }
+                            }
+                        }, "AndroidInterface")
                         
                         webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
                         currentTextContent = content
@@ -905,6 +931,37 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         
                         textView.text = content
                         currentTextContent = content // Store for TTS
+                        
+                        // Enable text selection for highlighting
+                        textView.setTextIsSelectable(true)
+                        textView.customSelectionActionModeCallback = object : android.view.ActionMode.Callback {
+                            override fun onCreateActionMode(mode: android.view.ActionMode?, menu: android.view.Menu?): Boolean {
+                                menu?.add(0, 1, 0, getString(R.string.highlight_text))
+                                return true
+                            }
+                            
+                            override fun onPrepareActionMode(mode: android.view.ActionMode?, menu: android.view.Menu?): Boolean {
+                                return false
+                            }
+                            
+                            override fun onActionItemClicked(mode: android.view.ActionMode?, item: android.view.MenuItem?): Boolean {
+                                if (item?.itemId == 1) {
+                                    val start = textView.selectionStart
+                                    val end = textView.selectionEnd
+                                    if (start >= 0 && end > start) {
+                                        val selectedText = content.substring(start, end)
+                                        saveHighlight(selectedText, 0, start)
+                                    }
+                                    mode?.finish()
+                                    return true
+                                }
+                                return false
+                            }
+                            
+                            override fun onDestroyActionMode(mode: android.view.ActionMode?) {
+                                // Nothing to do
+                            }
+                        }
                     }
                     
                     // Apply reading preferences
@@ -925,8 +982,46 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                                 "File: ${file.name}\n" +
                                 "Size: ${file.length() / 1024} KB"
                     }
+            }
+        }
+    }
+    
+    private fun saveHighlight(selectedText: String, page: Int, position: Int) {
+        currentBook?.let { book ->
+            lifecycleScope.launch {
+                try {
+                    val highlight = com.rifters.ebookreader.model.Highlight(
+                        bookId = book.id,
+                        selectedText = selectedText,
+                        page = page,
+                        position = position,
+                        color = android.graphics.Color.YELLOW,
+                        timestamp = System.currentTimeMillis()
+                    )
+                    
+                    val database = com.rifters.ebookreader.database.BookDatabase.getDatabase(this@ViewerActivity)
+                    database.highlightDao().insertHighlight(highlight)
+                    
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            getString(R.string.highlight_added),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            "Error adding highlight: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
             }
+        } ?: run {
+            Toast.makeText(this, "No book loaded", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -1043,6 +1138,18 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
     
+    private fun showHighlights() {
+        currentBook?.let { book ->
+            val bottomSheet = HighlightsBottomSheet.newInstance(book.id)
+            bottomSheet.setOnHighlightSelectedListener { highlight ->
+                navigateToHighlight(highlight)
+            }
+            bottomSheet.show(supportFragmentManager, HighlightsBottomSheet.TAG)
+        } ?: run {
+            Toast.makeText(this, "No book loaded", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
     private fun navigateToBookmark(bookmark: Bookmark) {
         if (pdfRenderer != null && totalPdfPages > 0) {
             // For PDF files, navigate to the bookmarked page
@@ -1074,6 +1181,43 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             Toast.makeText(
                 this,
                 "Page navigation not available for this format",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+    
+    private fun navigateToHighlight(highlight: com.rifters.ebookreader.model.Highlight) {
+        if (pdfRenderer != null && totalPdfPages > 0) {
+            // For PDF files, navigate to the highlighted page
+            if (highlight.page in 0 until totalPdfPages) {
+                currentPage = highlight.page
+                renderPdfPage(currentPage)
+                Toast.makeText(
+                    this,
+                    getString(R.string.page_format, highlight.page + 1),
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                Toast.makeText(this, "Invalid page number", Toast.LENGTH_SHORT).show()
+            }
+        } else if (totalComicPages > 0) {
+            // For comic books (CBZ/CBR), navigate to the highlighted page
+            if (highlight.page in 0 until totalComicPages) {
+                currentPage = highlight.page
+                renderComicPage(currentPage)
+                Toast.makeText(
+                    this,
+                    getString(R.string.page_format, highlight.page + 1),
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                Toast.makeText(this, "Invalid page number", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            // For text-based formats, try to scroll to the position
+            Toast.makeText(
+                this,
+                "Navigated to highlight",
                 Toast.LENGTH_SHORT
             ).show()
         }
@@ -1157,6 +1301,36 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             """.trimIndent(),
             null
         )
+    }
+    
+    private fun injectTextSelectionScript() {
+        val script = """
+            (function() {
+                document.addEventListener('mouseup', function() {
+                    var selectedText = window.getSelection().toString().trim();
+                    if (selectedText.length > 0) {
+                        if (confirm('Highlight selected text?')) {
+                            AndroidInterface.onTextSelected(selectedText);
+                            window.getSelection().removeAllRanges();
+                        }
+                    }
+                });
+                
+                document.addEventListener('touchend', function() {
+                    setTimeout(function() {
+                        var selectedText = window.getSelection().toString().trim();
+                        if (selectedText.length > 0) {
+                            if (confirm('Highlight selected text?')) {
+                                AndroidInterface.onTextSelected(selectedText);
+                                window.getSelection().removeAllRanges();
+                            }
+                        }
+                    }, 100);
+                });
+            })();
+        """.trimIndent()
+        
+        binding.webView.evaluateJavascript(script, null)
     }
     
     override fun onPause() {

@@ -9,6 +9,12 @@
         app:showAsAction="ifRoom" />
 
     <item
+        android:id="@+id/action_view_highlights"
+        android:icon="@android:drawable/ic_menu_edit"
+        android:title="@string/view_highlights"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_tts_play"
         android:icon="@android:drawable/ic_media_play"
         android:title="@string/tts_play"

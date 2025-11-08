@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
@@ -86,6 +87,14 @@ class BookmarksBottomSheet : BottomSheetDialogFragment() {
             val database = BookDatabase.getDatabase(requireContext())
             withContext(Dispatchers.IO) {
                 database.bookmarkDao().deleteBookmark(bookmark)
+            }
+            
+            withContext(Dispatchers.Main) {
+                Toast.makeText(
+                    requireContext(),
+                    R.string.bookmark_removed,
+                    Toast.LENGTH_SHORT
+                ).show()
             }
             
             // Reload bookmarks after deletion

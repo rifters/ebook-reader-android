@@ -53,6 +53,19 @@
     <string name="delete_bookmark_confirmation">Are you sure you want to delete this bookmark?</string>
     <string name="pdf_page_content_description">PDF page content</string>
     
+    <!-- Highlights -->
+    <string name="highlights">Highlights</string>
+    <string name="highlight_text">Highlight Text</string>
+    <string name="view_highlights">View Highlights</string>
+    <string name="no_highlights">No highlights yet</string>
+    <string name="highlight_added">Highlight added</string>
+    <string name="highlight_removed">Highlight removed</string>
+    <string name="delete_highlight">Delete Highlight</string>
+    <string name="delete_highlight_confirmation">Are you sure you want to delete this highlight?</string>
+    <string name="highlight_color">Highlight Color</string>
+    <string name="add_note">Add Note</string>
+    <string name="highlight_note">Note (optional)</string>
+    
     <!-- Reading Settings -->
     <string name="reading_settings">Reading Settings</string>
     <string name="font_family">Font Family</string>

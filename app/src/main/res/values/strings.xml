@@ -119,4 +119,15 @@
     <string name="sync_failed">Sync failed</string>
     <string name="sync_disabled">Cloud sync is disabled. Enable it in Settings.</string>
     <string name="pending_sync">%1$d items pending sync</string>
+    
+    <!-- Edit Book -->
+    <string name="edit_book">Edit Book</string>
+    <string name="book_cover">Book Cover</string>
+    <string name="cover_image">Cover Image</string>
+    <string name="change_cover">Change Cover</string>
+    <string name="save">Save</string>
+    <string name="book_updated">Book updated successfully</string>
+    <string name="error_updating_book">Error updating book</string>
+    <string name="title_required">Title is required</string>
+    <string name="author_required">Author is required</string>
 </resources>

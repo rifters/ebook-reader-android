@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.rifters.ebookreader.databinding.ActivityMainBinding
+import com.rifters.ebookreader.util.FileValidator
 import com.rifters.ebookreader.viewmodel.BookViewModel
 import com.rifters.ebookreader.viewmodel.CollectionViewModel
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 
 class MainActivity : AppCompatActivity() {
     
@@ -97,37 +99,105 @@ class MainActivity : AppCompatActivity() {
     private fun handleSelectedFile(uri: Uri) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                // Open input stream
                 val inputStream = contentResolver.openInputStream(uri)
                 if (inputStream == null) {
                     withContext(Dispatchers.Main) {
                         Toast.makeText(
                             this@MainActivity,
-                            "Failed to open file",
-                            Toast.LENGTH_SHORT
+                            getString(R.string.error_opening_file),
+                            Toast.LENGTH_LONG
                         ).show()
                     }
                     return@launch
                 }
                 
-                // Get file name and create local copy
+                // Get file name
                 val fileName = getFileName(uri) ?: "book_${System.currentTimeMillis()}"
                 val storageDir = getExternalFilesDir(null) ?: filesDir
+                
+                // Check storage space (estimate 2x file size needed)
+                val estimatedSize = try {
+                    inputStream.available().toLong() * 2
+                } catch (e: Exception) {
+                    100 * 1024 * 1024L // Default to 100MB if we can't determine
+                }
+                
+                if (!FileValidator.hasEnoughStorage(estimatedSize, storageDir)) {
+                    inputStream.close()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            getString(R.string.error_storage_full),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    return@launch
+                }
+                
                 val file = File(storageDir, fileName)
                 
                 // Copy file to app storage
-                FileOutputStream(file).use { outputStream ->
-                    inputStream.copyTo(outputStream)
+                try {
+                    FileOutputStream(file).use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                } catch (e: IOException) {
+                    inputStream.close()
+                    file.delete() // Clean up partial file
+                    throw e
                 }
                 inputStream.close()
                 
+                // Validate the copied file
+                val validationResult = FileValidator.validateFile(file, this@MainActivity)
+                if (validationResult is FileValidator.ValidationResult.Invalid) {
+                    file.delete() // Clean up invalid file
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            validationResult.errorMessage,
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    return@launch
+                }
+                
+                // Validate format-specific structure
+                val fileExtension = fileName.substringAfterLast('.', "").lowercase()
+                val isValidFormat = when (fileExtension) {
+                    "pdf" -> FileValidator.validatePdfFile(file)
+                    "epub" -> FileValidator.validateEpubFile(file)
+                    "mobi" -> FileValidator.validateMobiFile(file)
+                    "cbz" -> FileValidator.validateCbzFile(file)
+                    "txt" -> true // TXT files don't need special validation
+                    "cbr" -> true // CBR validation is complex, handled in viewer
+                    else -> false
+                }
+                
+                if (!isValidFormat) {
+                    file.delete() // Clean up invalid file
+                    withContext(Dispatchers.Main) {
+                        val errorMsg = when (fileExtension) {
+                            "pdf" -> getString(R.string.error_pdf_damaged)
+                            "epub" -> getString(R.string.error_epub_invalid)
+                            "mobi" -> getString(R.string.error_mobi_invalid)
+                            "cbz" -> getString(R.string.error_cbz_invalid)
+                            else -> getString(R.string.error_unsupported_format)
+                        }
+                        Toast.makeText(this@MainActivity, errorMsg, Toast.LENGTH_LONG).show()
+                    }
+                    return@launch
+                }
+                
                 // Determine MIME type
-                val mimeType = when {
-                    fileName.endsWith(".pdf", ignoreCase = true) -> "application/pdf"
-                    fileName.endsWith(".epub", ignoreCase = true) -> "application/epub+zip"
-                    fileName.endsWith(".mobi", ignoreCase = true) -> "application/x-mobipocket-ebook"
-                    fileName.endsWith(".cbz", ignoreCase = true) -> "application/vnd.comicbook+zip"
-                    fileName.endsWith(".cbr", ignoreCase = true) -> "application/vnd.comicbook-rar"
-                    fileName.endsWith(".txt", ignoreCase = true) -> "text/plain"
+                val mimeType = when (fileExtension) {
+                    "pdf" -> "application/pdf"
+                    "epub" -> "application/epub+zip"
+                    "mobi" -> "application/x-mobipocket-ebook"
+                    "cbz" -> "application/vnd.comicbook+zip"
+                    "cbr" -> "application/vnd.comicbook-rar"
+                    "txt" -> "text/plain"
                     else -> contentResolver.getType(uri) ?: "application/octet-stream"
                 }
                 
@@ -150,12 +220,26 @@ class MainActivity : AppCompatActivity() {
                         Toast.LENGTH_SHORT
                     ).show()
                 }
+            } catch (e: OutOfMemoryError) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.error_file_too_large, "100MB"),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } catch (e: IOException) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    val errorMsg = FileValidator.getErrorMessage(e, this@MainActivity)
+                    Toast.makeText(this@MainActivity, errorMsg, Toast.LENGTH_LONG).show()
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
                     Toast.makeText(
                         this@MainActivity,
-                        "Error adding book: ${e.message}",
+                        getString(R.string.error_adding_book, e.message ?: "Unknown error"),
                         Toast.LENGTH_LONG
                     ).show()
                 }

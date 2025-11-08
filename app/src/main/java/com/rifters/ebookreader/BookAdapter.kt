@@ -103,7 +103,20 @@ class BookAdapter(
         }
         
         override fun areContentsTheSame(oldItem: Book, newItem: Book): Boolean {
-            return oldItem == newItem
+            // Explicitly compare all fields that affect the UI display
+            // This ensures content changes are properly detected and the UI updates accordingly
+            return oldItem.title == newItem.title &&
+                    oldItem.author == newItem.author &&
+                    oldItem.filePath == newItem.filePath &&
+                    oldItem.fileSize == newItem.fileSize &&
+                    oldItem.mimeType == newItem.mimeType &&
+                    oldItem.dateAdded == newItem.dateAdded &&
+                    oldItem.lastOpened == newItem.lastOpened &&
+                    oldItem.coverImagePath == newItem.coverImagePath &&
+                    oldItem.totalPages == newItem.totalPages &&
+                    oldItem.currentPage == newItem.currentPage &&
+                    oldItem.isCompleted == newItem.isCompleted &&
+                    oldItem.progressPercentage == newItem.progressPercentage
         }
     }
 }

@@ -28,6 +28,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var bookViewModel: BookViewModel
     private var currentBook: Book? = null
     private var currentPage: Int = 0
+    private var currentProgressPercent: Float = 0f
     
     // PDF variables
     private var pdfRenderer: PdfRenderer? = null
@@ -166,6 +167,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
                 
                 currentPage = currentBook?.currentPage ?: 0
+                currentProgressPercent = currentBook?.progressPercentage ?: 0f
                 loadBook(bookPath)
             }
         } else {
@@ -237,7 +239,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 withContext(Dispatchers.Main) {
                     binding.loadingProgressBar.visibility = View.GONE
                     binding.webView.visibility = View.GONE
-                    binding.scrollView.visibility = View.VISIBLE
+                    binding.scrollView.visibility = View.GONE
+                    binding.pdfImageView.visibility = View.VISIBLE
+                    binding.pdfImageView.setImageBitmap(null)
                     
                     renderPdfPage(currentPage)
                 }
@@ -246,7 +250,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 withContext(Dispatchers.Main) {
                     binding.apply {
                         loadingProgressBar.visibility = View.GONE
+                        pdfImageView.visibility = View.GONE
                         scrollView.visibility = View.VISIBLE
+                        textView.visibility = View.VISIBLE
                         textView.text = "Error loading PDF: ${e.message}\n\n" +
                                 "File: ${file.name}\n" +
                                 "Size: ${file.length() / 1024} KB"
@@ -276,14 +282,11 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 
                 withContext(Dispatchers.Main) {
                     binding.apply {
-                        // Use imageView instead of textView for PDF
+                        pdfImageView.visibility = View.VISIBLE
+                        pdfImageView.setImageBitmap(bitmap)
+                        webView.visibility = View.GONE
+                        scrollView.visibility = View.GONE
                         textView.visibility = View.GONE
-                        
-                        // We'll need to add an ImageView to the layout, for now show info
-                        textView.visibility = View.VISIBLE
-                        textView.text = "PDF Page ${pageIndex + 1} of $totalPdfPages\n\n" +
-                                "Use Previous/Next buttons to navigate\n\n" +
-                                "Note: Full PDF rendering requires ImageView in layout"
                     }
                     
                     currentPage = pageIndex
@@ -340,8 +343,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 withContext(Dispatchers.Main) {
                     binding.apply {
                         loadingProgressBar.visibility = View.GONE
+                        pdfImageView.visibility = View.GONE
                         webView.visibility = View.VISIBLE
                         scrollView.visibility = View.GONE
+                        textView.visibility = View.GONE
                         
                         // Configure WebView for EPUB
                         webView.settings.apply {
@@ -365,6 +370,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         scrollView.visibility = View.GONE
                         
                         webView.settings.javaScriptEnabled = true
+                        pdfImageView.visibility = View.GONE
                         val errorHtml = """
                             <html>
                             <body style="padding: 16px;">
@@ -391,8 +397,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             binding.apply {
                 loadingProgressBar.visibility = View.GONE
                 // pdfView.visibility = View.GONE
+                pdfImageView.visibility = View.GONE
                 webView.visibility = View.GONE
                 scrollView.visibility = View.VISIBLE
+                textView.visibility = View.VISIBLE
                 
                 textView.text = content
                 currentTextContent = content // Store for TTS
@@ -402,13 +410,20 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     
     private fun updateProgress(page: Int, totalPages: Int) {
         currentBook?.let { book ->
-            val progress = if (totalPages > 0) {
-                (page.toFloat() / totalPages * 100)
+            val boundedPage = if (totalPages > 0) {
+                page.coerceAtLeast(0).coerceAtMost(totalPages - 1)
             } else {
-                0f
+                page
             }
             
-            bookViewModel.updateProgress(book.id, page, progress)
+            val progress = if (totalPages > 0) {
+                (((boundedPage + 1).toFloat() / totalPages) * 100f).coerceIn(0f, 100f)
+            } else {
+                currentProgressPercent.coerceIn(0f, 100f)
+            }
+            
+            currentProgressPercent = progress
+            bookViewModel.updateProgress(book.id, boundedPage, progress)
         }
     }
     
@@ -479,7 +494,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         super.onPause()
         // Save current position when leaving the activity
         currentBook?.let { book ->
-            bookViewModel.updateProgress(book.id, currentPage, book.progressPercentage)
+            bookViewModel.updateProgress(book.id, currentPage, currentProgressPercent)
         }
     }
     

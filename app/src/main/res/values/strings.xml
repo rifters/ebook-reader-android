@@ -47,4 +47,5 @@
     <string name="bookmark_added">Bookmark added</string>
     <string name="bookmark_removed">Bookmark removed</string>
     <string name="no_bookmarks">No bookmarks yet</string>
+    <string name="pdf_page_content_description">PDF page content</string>
 </resources>

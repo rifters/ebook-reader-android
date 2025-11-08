@@ -90,4 +90,64 @@ class BookTest {
         assertTrue(book.dateAdded >= currentTime)
         assertTrue(book.dateAdded <= System.currentTimeMillis())
     }
+    
+    @Test
+    fun `book with MOBI mime type`() {
+        val book = Book(
+            title = "Test MOBI Book",
+            author = "Test Author",
+            filePath = "/path/to/book.mobi",
+            fileSize = 2048,
+            mimeType = "application/x-mobipocket-ebook"
+        )
+        
+        assertEquals("Test MOBI Book", book.title)
+        assertEquals("application/x-mobipocket-ebook", book.mimeType)
+        assertEquals("/path/to/book.mobi", book.filePath)
+    }
+    
+    @Test
+    fun `book with CBZ mime type`() {
+        val book = Book(
+            title = "Test Comic",
+            author = "Comic Author",
+            filePath = "/path/to/comic.cbz",
+            fileSize = 5120,
+            mimeType = "application/vnd.comicbook+zip"
+        )
+        
+        assertEquals("Test Comic", book.title)
+        assertEquals("application/vnd.comicbook+zip", book.mimeType)
+        assertEquals("/path/to/comic.cbz", book.filePath)
+    }
+    
+    @Test
+    fun `book with CBR mime type`() {
+        val book = Book(
+            title = "Test Comic RAR",
+            author = "Comic Author",
+            filePath = "/path/to/comic.cbr",
+            fileSize = 6144,
+            mimeType = "application/vnd.comicbook-rar"
+        )
+        
+        assertEquals("Test Comic RAR", book.title)
+        assertEquals("application/vnd.comicbook-rar", book.mimeType)
+        assertEquals("/path/to/comic.cbr", book.filePath)
+    }
+    
+    @Test
+    fun `book with EPUB mime type`() {
+        val book = Book(
+            title = "Test EPUB",
+            author = "EPUB Author",
+            filePath = "/path/to/book.epub",
+            fileSize = 3072,
+            mimeType = "application/epub+zip"
+        )
+        
+        assertEquals("Test EPUB", book.title)
+        assertEquals("application/epub+zip", book.mimeType)
+        assertEquals("/path/to/book.epub", book.filePath)
+    }
 }

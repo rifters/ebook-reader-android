@@ -377,7 +377,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 val zipFile = ZipFile(file)
                 val entries = zipFile.entries()
                 
-                // Find the first HTML/XHTML content file
+                // Find the first HTML/XHTML content file with size limit
+                val maxContentSize = 5 * 1024 * 1024 // 5MB limit
                 var contentHtml = ""
                 while (entries.hasMoreElements()) {
                     val entry = entries.nextElement()
@@ -385,7 +386,18 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     
                     if (name.endsWith(".html") || name.endsWith(".xhtml") || name.endsWith(".htm")) {
                         val inputStream = zipFile.getInputStream(entry)
-                        contentHtml = inputStream.bufferedReader().use { it.readText() }
+                        
+                        // Check size and limit if necessary
+                        contentHtml = if (entry.size > maxContentSize) {
+                            val limitedContent = inputStream.bufferedReader().use { reader ->
+                                val buffer = CharArray(maxContentSize)
+                                val charsRead = reader.read(buffer)
+                                String(buffer, 0, charsRead)
+                            }
+                            "$limitedContent\n<p><em>[Content truncated - showing first 5MB]</em></p>"
+                        } else {
+                            inputStream.bufferedReader().use { it.readText() }
+                        }
                         break
                     }
                 }
@@ -543,14 +555,22 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             sb.append("File: ${file.name}\n")
             sb.append("Size: ${file.length() / 1024} KB\n\n")
             
+            // Limit reading to 5MB to avoid memory issues
+            val maxBytes = 5 * 1024 * 1024 // 5MB limit
+            val bytesToRead = minOf(file.length(), maxBytes.toLong()).toInt()
+            
             // Try to extract readable text from the file
             val buffer = ByteArray(4096)
             var bytesRead: Int
+            var totalRead = 0
             val textContent = StringBuilder()
             
             raf.seek(0)
-            while (raf.read(buffer).also { bytesRead = it } != -1) {
-                val text = String(buffer, 0, bytesRead, Charsets.ISO_8859_1)
+            while (raf.read(buffer).also { bytesRead = it } != -1 && totalRead < bytesToRead) {
+                val actualRead = minOf(bytesRead, bytesToRead - totalRead)
+                totalRead += actualRead
+                
+                val text = String(buffer, 0, actualRead, Charsets.ISO_8859_1)
                 // Filter out non-printable characters but keep readable text
                 text.forEach { char ->
                     if (char.isLetterOrDigit() || char.isWhitespace() || char in ".,!?;:'\"-()[]{}") {
@@ -564,6 +584,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val extracted = textContent.toString()
             if (extracted.length > 200) {
                 sb.append(extracted)
+                if (file.length() > maxBytes) {
+                    sb.append("\n\n[Content truncated - showing first 5MB of ${file.length() / 1024 / 1024}MB]")
+                }
             } else {
                 sb.append("MOBI format detected.\n\n")
                 sb.append("This is a basic MOBI reader implementation.\n")
@@ -856,26 +879,54 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
     
     private suspend fun loadText(file: File) {
-        val content = withContext(Dispatchers.IO) {
-            file.readText()
-        }
-        
-        withContext(Dispatchers.Main) {
-            binding.apply {
-                loadingProgressBar.visibility = View.GONE
-                // pdfView.visibility = View.GONE
-                pdfImageView.visibility = View.GONE
-                webView.visibility = View.GONE
-                scrollView.visibility = View.VISIBLE
-                textView.visibility = View.VISIBLE
+        withContext(Dispatchers.IO) {
+            try {
+                // For very large text files (>5MB), read with a limit to avoid OOM
+                val maxSize = 5 * 1024 * 1024 // 5MB limit for text files
+                val content = if (file.length() > maxSize) {
+                    // Read only first 5MB and add a notice
+                    val limitedContent = file.inputStream().bufferedReader().use { reader ->
+                        val buffer = CharArray(maxSize)
+                        val charsRead = reader.read(buffer)
+                        String(buffer, 0, charsRead)
+                    }
+                    "$limitedContent\n\n[File truncated - showing first 5MB of ${file.length() / 1024 / 1024}MB]"
+                } else {
+                    file.readText()
+                }
                 
-                textView.text = content
-                currentTextContent = content // Store for TTS
+                withContext(Dispatchers.Main) {
+                    binding.apply {
+                        loadingProgressBar.visibility = View.GONE
+                        pdfImageView.visibility = View.GONE
+                        webView.visibility = View.GONE
+                        scrollView.visibility = View.VISIBLE
+                        textView.visibility = View.VISIBLE
+                        
+                        textView.text = content
+                        currentTextContent = content // Store for TTS
+                    }
+                    
+                    // Apply reading preferences
+                    val preferences = preferencesManager.getReadingPreferences()
+                    applyReadingPreferences(preferences)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    binding.apply {
+                        loadingProgressBar.visibility = View.GONE
+                        scrollView.visibility = View.VISIBLE
+                        textView.visibility = View.VISIBLE
+                        pdfImageView.visibility = View.GONE
+                        webView.visibility = View.GONE
+                        
+                        textView.text = "Error loading text file: ${e.message}\n\n" +
+                                "File: ${file.name}\n" +
+                                "Size: ${file.length() / 1024} KB"
+                    }
+                }
             }
-            
-            // Apply reading preferences
-            val preferences = preferencesManager.getReadingPreferences()
-            applyReadingPreferences(preferences)
         }
     }
     

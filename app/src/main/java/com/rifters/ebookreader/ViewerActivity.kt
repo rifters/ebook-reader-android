@@ -21,7 +21,7 @@ import com.github.junrar.rarfile.FileHeader
 import com.rifters.ebookreader.databinding.ActivityViewerBinding
 import com.rifters.ebookreader.model.Bookmark
 import com.rifters.ebookreader.model.ReadingPreferences
-import com.rifters.ebookreader.util.BitmapCache
+import com.rifters.ebookreader.util.FileValidator
 import com.rifters.ebookreader.util.PreferencesManager
 import com.rifters.ebookreader.viewmodel.BookViewModel
 import kotlinx.coroutines.Dispatchers
@@ -49,12 +49,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var totalPdfPages: Int = 0
     
     // Comic book (CBZ/CBR) variables
-    private var comicImagePaths: MutableList<Pair<String, Any>> = mutableListOf() // Pair of (path, source)
-    private var comicArchiveFile: File? = null
+    private var comicImages: MutableList<Bitmap> = mutableListOf()
     private var totalComicPages: Int = 0
-    
-    // Bitmap cache for page caching
-    private val bitmapCache = BitmapCache.getInstance()
     
     // TTS variables
     private var textToSpeech: TextToSpeech? = null
@@ -103,10 +99,6 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         
         binding.toolbar.setNavigationOnClickListener {
-            // Save current reading position before navigating back
-            currentBook?.let { book ->
-                bookViewModel.updateProgress(book.id, currentPage, currentProgressPercent)
-            }
             finish()
         }
     }
@@ -119,16 +111,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
-            R.id.action_library -> {
-                navigateToLibrary()
-                true
-            }
             R.id.action_view_bookmarks -> {
                 showBookmarks()
-                true
-            }
-            R.id.action_view_highlights -> {
-                showHighlights()
                 true
             }
             R.id.action_tts_play -> {
@@ -137,10 +121,6 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
             R.id.action_customize_reading -> {
                 showReadingSettings()
-                true
-            }
-            R.id.action_app_settings -> {
-                navigateToSettings()
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -234,35 +214,84 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         
         try {
             val file = File(filePath)
-            if (!file.exists()) {
+            
+            // Validate file existence and basic properties
+            val validationResult = FileValidator.validateFile(file, this@ViewerActivity)
+            if (validationResult is FileValidator.ValidationResult.Invalid) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(
                         this@ViewerActivity,
-                        getString(R.string.error_opening_file),
-                        Toast.LENGTH_SHORT
+                        validationResult.errorMessage,
+                        Toast.LENGTH_LONG
                     ).show()
                     finish()
                 }
                 return
             }
             
-            when {
-                filePath.endsWith(".pdf", ignoreCase = true) -> {
+            // Determine file type and load accordingly
+            val extension = file.extension.lowercase()
+            when (extension) {
+                "pdf" -> {
+                    if (!FileValidator.validatePdfFile(file)) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                this@ViewerActivity,
+                                getString(R.string.error_pdf_damaged),
+                                Toast.LENGTH_LONG
+                            ).show()
+                            finish()
+                        }
+                        return
+                    }
                     loadPdf(file)
                 }
-                filePath.endsWith(".epub", ignoreCase = true) -> {
+                "epub" -> {
+                    if (!FileValidator.validateEpubFile(file)) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                this@ViewerActivity,
+                                getString(R.string.error_epub_invalid),
+                                Toast.LENGTH_LONG
+                            ).show()
+                            finish()
+                        }
+                        return
+                    }
                     loadEpub(file)
                 }
-                filePath.endsWith(".mobi", ignoreCase = true) -> {
+                "mobi" -> {
+                    if (!FileValidator.validateMobiFile(file)) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                this@ViewerActivity,
+                                getString(R.string.error_mobi_invalid),
+                                Toast.LENGTH_LONG
+                            ).show()
+                            finish()
+                        }
+                        return
+                    }
                     loadMobi(file)
                 }
-                filePath.endsWith(".cbz", ignoreCase = true) -> {
+                "cbz" -> {
+                    if (!FileValidator.validateCbzFile(file)) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                this@ViewerActivity,
+                                getString(R.string.error_cbz_invalid),
+                                Toast.LENGTH_LONG
+                            ).show()
+                            finish()
+                        }
+                        return
+                    }
                     loadCbz(file)
                 }
-                filePath.endsWith(".cbr", ignoreCase = true) -> {
+                "cbr" -> {
                     loadCbr(file)
                 }
-                filePath.endsWith(".txt", ignoreCase = true) -> {
+                "txt" -> {
                     loadText(file)
                 }
                 else -> {
@@ -270,20 +299,30 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         Toast.makeText(
                             this@ViewerActivity,
                             getString(R.string.error_unsupported_format),
-                            Toast.LENGTH_SHORT
+                            Toast.LENGTH_LONG
                         ).show()
                         finish()
                     }
                 }
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        } catch (e: OutOfMemoryError) {
             withContext(Dispatchers.Main) {
                 Toast.makeText(
                     this@ViewerActivity,
-                    getString(R.string.error_opening_file),
-                    Toast.LENGTH_SHORT
+                    getString(R.string.error_file_too_large, "100MB"),
+                    Toast.LENGTH_LONG
                 ).show()
+                finish()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            withContext(Dispatchers.Main) {
+                val errorMsg = FileValidator.getErrorMessage(
+                    e, 
+                    this@ViewerActivity,
+                    File(filePath).extension
+                )
+                Toast.makeText(this@ViewerActivity, errorMsg, Toast.LENGTH_LONG).show()
                 finish()
             }
         }
@@ -295,6 +334,19 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 pdfFileDescriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
                 pdfRenderer = PdfRenderer(pdfFileDescriptor!!)
                 totalPdfPages = pdfRenderer?.pageCount ?: 0
+                
+                if (totalPdfPages == 0) {
+                    withContext(Dispatchers.Main) {
+                        binding.loadingProgressBar.visibility = View.GONE
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            getString(R.string.error_file_empty),
+                            Toast.LENGTH_LONG
+                        ).show()
+                        finish()
+                    }
+                    return@withContext
+                }
                 
                 withContext(Dispatchers.Main) {
                     binding.loadingProgressBar.visibility = View.GONE
@@ -309,18 +361,24 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     val preferences = preferencesManager.getReadingPreferences()
                     applyThemeToUI(preferences)
                 }
+            } catch (e: SecurityException) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    binding.loadingProgressBar.visibility = View.GONE
+                    Toast.makeText(
+                        this@ViewerActivity,
+                        getString(R.string.error_no_read_permission),
+                        Toast.LENGTH_LONG
+                    ).show()
+                    finish()
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
-                    binding.apply {
-                        loadingProgressBar.visibility = View.GONE
-                        pdfImageView.visibility = View.GONE
-                        scrollView.visibility = View.VISIBLE
-                        textView.visibility = View.VISIBLE
-                        textView.text = "Error loading PDF: ${e.message}\n\n" +
-                                "File: ${file.name}\n" +
-                                "Size: ${file.length() / 1024} KB"
-                    }
+                    binding.loadingProgressBar.visibility = View.GONE
+                    val errorMsg = FileValidator.getErrorMessage(e, this@ViewerActivity, "pdf")
+                    Toast.makeText(this@ViewerActivity, errorMsg, Toast.LENGTH_LONG).show()
+                    finish()
                 }
             }
         }
@@ -332,34 +390,29 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 val renderer = pdfRenderer ?: return@launch
                 if (pageIndex < 0 || pageIndex >= totalPdfPages) return@launch
                 
-                // Check cache first
-                val cacheKey = "pdf_${currentBook?.id}_$pageIndex"
-                val cachedBitmap = bitmapCache.getBitmap(cacheKey)
-                
-                if (cachedBitmap != null && !cachedBitmap.isRecycled) {
-                    withContext(Dispatchers.Main) {
-                        displayPdfBitmap(cachedBitmap, pageIndex)
-                    }
-                    return@launch
-                }
-                
                 val page = renderer.openPage(pageIndex)
                 
-                // Create a bitmap with optimized resolution (1.5x instead of 2x)
+                // Create a bitmap to render the page
                 val bitmap = Bitmap.createBitmap(
-                    (page.width * 1.5).toInt(),
-                    (page.height * 1.5).toInt(),
+                    page.width * 2,
+                    page.height * 2,
                     Bitmap.Config.ARGB_8888
                 )
                 
                 page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                 page.close()
                 
-                // Cache the bitmap
-                bitmapCache.put(cacheKey, bitmap)
-                
                 withContext(Dispatchers.Main) {
-                    displayPdfBitmap(bitmap, pageIndex)
+                    binding.apply {
+                        pdfImageView.visibility = View.VISIBLE
+                        pdfImageView.setImageBitmap(bitmap)
+                        webView.visibility = View.GONE
+                        scrollView.visibility = View.GONE
+                        textView.visibility = View.GONE
+                    }
+                    
+                    currentPage = pageIndex
+                    updateProgress(pageIndex, totalPdfPages)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -374,27 +427,13 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
     
-    private fun displayPdfBitmap(bitmap: Bitmap, pageIndex: Int) {
-        binding.apply {
-            pdfImageView.visibility = View.VISIBLE
-            pdfImageView.setImageBitmap(bitmap)
-            webView.visibility = View.GONE
-            scrollView.visibility = View.GONE
-            textView.visibility = View.GONE
-        }
-        
-        currentPage = pageIndex
-        updateProgress(pageIndex, totalPdfPages)
-    }
-    
     private suspend fun loadEpub(file: File) {
         withContext(Dispatchers.IO) {
             try {
                 val zipFile = ZipFile(file)
                 val entries = zipFile.entries()
                 
-                // Find the first HTML/XHTML content file with size limit
-                val maxContentSize = 5 * 1024 * 1024 // 5MB limit
+                // Find the first HTML/XHTML content file
                 var contentHtml = ""
                 while (entries.hasMoreElements()) {
                     val entry = entries.nextElement()
@@ -402,34 +441,24 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     
                     if (name.endsWith(".html") || name.endsWith(".xhtml") || name.endsWith(".htm")) {
                         val inputStream = zipFile.getInputStream(entry)
-                        
-                        // Check size and limit if necessary
-                        contentHtml = if (entry.size > maxContentSize) {
-                            val limitedContent = inputStream.bufferedReader().use { reader ->
-                                val buffer = CharArray(maxContentSize)
-                                val charsRead = reader.read(buffer)
-                                String(buffer, 0, charsRead)
-                            }
-                            "$limitedContent\n<p><em>[Content truncated - showing first 5MB]</em></p>"
-                        } else {
-                            inputStream.bufferedReader().use { it.readText() }
-                        }
+                        contentHtml = inputStream.bufferedReader().use { it.readText() }
                         break
                     }
                 }
                 
                 if (contentHtml.isEmpty()) {
-                    contentHtml = """
-                        <html>
-                        <head><meta charset="utf-8"/></head>
-                        <body style="padding: 16px; font-size: 16px; line-height: 1.6;">
-                        <h1>EPUB Reader</h1>
-                        <p>EPUB file loaded: ${file.name}</p>
-                        <p>Basic EPUB support is now available.</p>
-                        <p>This is a simple EPUB parser that extracts and displays HTML content.</p>
-                        </body>
-                        </html>
-                    """.trimIndent()
+                    // No content found - show error
+                    withContext(Dispatchers.Main) {
+                        binding.loadingProgressBar.visibility = View.GONE
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            getString(R.string.error_epub_invalid),
+                            Toast.LENGTH_LONG
+                        ).show()
+                        finish()
+                    }
+                    zipFile.close()
+                    return@withContext
                 }
                 
                 zipFile.close()
@@ -456,46 +485,31 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                                 super.onPageFinished(view, url)
                                 val preferences = preferencesManager.getReadingPreferences()
                                 applyWebViewStyles(preferences)
-                                injectTextSelectionScript()
                             }
                         }
-                        
-                        // Add JavaScript interface for handling text selection
-                        webView.addJavascriptInterface(object {
-                            @android.webkit.JavascriptInterface
-                            fun onTextSelected(text: String) {
-                                lifecycleScope.launch(Dispatchers.Main) {
-                                    saveHighlight(text, currentPage, 0)
-                                }
-                            }
-                        }, "AndroidInterface")
                         
                         webView.loadDataWithBaseURL(null, contentHtml, "text/html", "UTF-8", null)
                         currentTextContent = contentHtml // Store for TTS
                     }
                 }
+            } catch (e: java.util.zip.ZipException) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    binding.loadingProgressBar.visibility = View.GONE
+                    Toast.makeText(
+                        this@ViewerActivity,
+                        getString(R.string.error_epub_invalid),
+                        Toast.LENGTH_LONG
+                    ).show()
+                    finish()
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
-                    binding.apply {
-                        loadingProgressBar.visibility = View.GONE
-                        webView.visibility = View.VISIBLE
-                        scrollView.visibility = View.GONE
-                        
-                        webView.settings.javaScriptEnabled = true
-                        pdfImageView.visibility = View.GONE
-                        val errorHtml = """
-                            <html>
-                            <body style="padding: 16px;">
-                            <h1>EPUB Error</h1>
-                            <p>Error loading EPUB file: ${e.message}</p>
-                            <p>File: ${file.name}</p>
-                            </body>
-                            </html>
-                        """.trimIndent()
-                        
-                        webView.loadDataWithBaseURL(null, errorHtml, "text/html", "UTF-8", null)
-                    }
+                    binding.loadingProgressBar.visibility = View.GONE
+                    val errorMsg = FileValidator.getErrorMessage(e, this@ViewerActivity, "epub")
+                    Toast.makeText(this@ViewerActivity, errorMsg, Toast.LENGTH_LONG).show()
+                    finish()
                 }
             }
         }
@@ -506,6 +520,19 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             try {
                 // Basic MOBI/PDB format reading
                 val content = extractMobiContent(file)
+                
+                if (content.contains("Error extracting MOBI content")) {
+                    withContext(Dispatchers.Main) {
+                        binding.loadingProgressBar.visibility = View.GONE
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            getString(R.string.error_mobi_invalid),
+                            Toast.LENGTH_LONG
+                        ).show()
+                        finish()
+                    }
+                    return@withContext
+                }
                 
                 val htmlContent = """
                     <html>
@@ -535,19 +562,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                                 super.onPageFinished(view, url)
                                 val preferences = preferencesManager.getReadingPreferences()
                                 applyWebViewStyles(preferences)
-                                injectTextSelectionScript()
                             }
                         }
-                        
-                        // Add JavaScript interface for handling text selection
-                        webView.addJavascriptInterface(object {
-                            @android.webkit.JavascriptInterface
-                            fun onTextSelected(text: String) {
-                                lifecycleScope.launch(Dispatchers.Main) {
-                                    saveHighlight(text, currentPage, 0)
-                                }
-                            }
-                        }, "AndroidInterface")
                         
                         webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
                         currentTextContent = content
@@ -556,25 +572,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
-                    binding.apply {
-                        loadingProgressBar.visibility = View.GONE
-                        webView.visibility = View.VISIBLE
-                        scrollView.visibility = View.GONE
-                        pdfImageView.visibility = View.GONE
-                        
-                        val errorHtml = """
-                            <html>
-                            <body style="padding: 16px;">
-                            <h1>MOBI Error</h1>
-                            <p>Error loading MOBI file: ${e.message}</p>
-                            <p>File: ${file.name}</p>
-                            <p>Basic MOBI format support is available for simple text extraction.</p>
-                            </body>
-                            </html>
-                        """.trimIndent()
-                        
-                        webView.loadDataWithBaseURL(null, errorHtml, "text/html", "UTF-8", null)
-                    }
+                    binding.loadingProgressBar.visibility = View.GONE
+                    val errorMsg = FileValidator.getErrorMessage(e, this@ViewerActivity, "mobi")
+                    Toast.makeText(this@ViewerActivity, errorMsg, Toast.LENGTH_LONG).show()
+                    finish()
                 }
             }
         }
@@ -593,22 +594,14 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             sb.append("File: ${file.name}\n")
             sb.append("Size: ${file.length() / 1024} KB\n\n")
             
-            // Limit reading to 5MB to avoid memory issues
-            val maxBytes = 5 * 1024 * 1024 // 5MB limit
-            val bytesToRead = minOf(file.length(), maxBytes.toLong()).toInt()
-            
             // Try to extract readable text from the file
             val buffer = ByteArray(4096)
             var bytesRead: Int
-            var totalRead = 0
             val textContent = StringBuilder()
             
             raf.seek(0)
-            while (raf.read(buffer).also { bytesRead = it } != -1 && totalRead < bytesToRead) {
-                val actualRead = minOf(bytesRead, bytesToRead - totalRead)
-                totalRead += actualRead
-                
-                val text = String(buffer, 0, actualRead, Charsets.ISO_8859_1)
+            while (raf.read(buffer).also { bytesRead = it } != -1) {
+                val text = String(buffer, 0, bytesRead, Charsets.ISO_8859_1)
                 // Filter out non-printable characters but keep readable text
                 text.forEach { char ->
                     if (char.isLetterOrDigit() || char.isWhitespace() || char in ".,!?;:'\"-()[]{}") {
@@ -622,9 +615,6 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val extracted = textContent.toString()
             if (extracted.length > 200) {
                 sb.append(extracted)
-                if (file.length() > maxBytes) {
-                    sb.append("\n\n[Content truncated - showing first 5MB of ${file.length() / 1024 / 1024}MB]")
-                }
             } else {
                 sb.append("MOBI format detected.\n\n")
                 sb.append("This is a basic MOBI reader implementation.\n")
@@ -641,8 +631,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private suspend fun loadCbz(file: File) {
         withContext(Dispatchers.IO) {
             try {
-                comicImagePaths.clear()
-                comicArchiveFile = file
+                comicImages.clear()
                 
                 // Use Apache Commons Compress for better ZIP handling
                 val zipFile = ApacheZipFile(file)
@@ -654,13 +643,50 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     }}
                     .sortedBy { it.name }
                 
-                // Store paths only, load images on demand
+                if (entries.isEmpty()) {
+                    zipFile.close()
+                    withContext(Dispatchers.Main) {
+                        binding.loadingProgressBar.visibility = View.GONE
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            getString(R.string.error_cbz_invalid),
+                            Toast.LENGTH_LONG
+                        ).show()
+                        finish()
+                    }
+                    return@withContext
+                }
+                
+                // Load all images
                 for (entry in entries) {
-                    comicImagePaths.add(Pair(entry.name, "cbz"))
+                    try {
+                        val inputStream = zipFile.getInputStream(entry)
+                        val bitmap = BitmapFactory.decodeStream(inputStream)
+                        if (bitmap != null) {
+                            comicImages.add(bitmap)
+                        }
+                        inputStream.close()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        // Continue with other images
+                    }
                 }
                 
                 zipFile.close()
-                totalComicPages = comicImagePaths.size
+                totalComicPages = comicImages.size
+                
+                if (totalComicPages == 0) {
+                    withContext(Dispatchers.Main) {
+                        binding.loadingProgressBar.visibility = View.GONE
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            getString(R.string.error_cbz_invalid),
+                            Toast.LENGTH_LONG
+                        ).show()
+                        finish()
+                    }
+                    return@withContext
+                }
                 
                 withContext(Dispatchers.Main) {
                     binding.apply {
@@ -670,31 +696,38 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         scrollView.visibility = View.GONE
                         textView.visibility = View.GONE
                     }
-                    
-                    if (totalComicPages > 0) {
-                        renderComicPage(currentPage)
-                    } else {
-                        Toast.makeText(
-                            this@ViewerActivity,
-                            "No images found in CBZ file",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                    renderComicPage(currentPage)
+                }
+            } catch (e: java.util.zip.ZipException) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    binding.loadingProgressBar.visibility = View.GONE
+                    Toast.makeText(
+                        this@ViewerActivity,
+                        getString(R.string.error_cbz_invalid),
+                        Toast.LENGTH_LONG
+                    ).show()
+                    finish()
+                }
+            } catch (e: OutOfMemoryError) {
+                comicImages.forEach { it.recycle() }
+                comicImages.clear()
+                withContext(Dispatchers.Main) {
+                    binding.loadingProgressBar.visibility = View.GONE
+                    Toast.makeText(
+                        this@ViewerActivity,
+                        getString(R.string.error_file_too_large, "100MB"),
+                        Toast.LENGTH_LONG
+                    ).show()
+                    finish()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
-                    binding.apply {
-                        loadingProgressBar.visibility = View.GONE
-                        scrollView.visibility = View.VISIBLE
-                        textView.visibility = View.VISIBLE
-                        pdfImageView.visibility = View.GONE
-                        webView.visibility = View.GONE
-                        
-                        textView.text = "Error loading CBZ file: ${e.message}\n\n" +
-                                "File: ${file.name}\n" +
-                                "CBZ files should contain image files (JPG, PNG, etc.)"
-                    }
+                    binding.loadingProgressBar.visibility = View.GONE
+                    val errorMsg = FileValidator.getErrorMessage(e, this@ViewerActivity, "cbz")
+                    Toast.makeText(this@ViewerActivity, errorMsg, Toast.LENGTH_LONG).show()
+                    finish()
                 }
             }
         }
@@ -703,8 +736,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private suspend fun loadCbr(file: File) {
         withContext(Dispatchers.IO) {
             try {
-                comicImagePaths.clear()
-                comicArchiveFile = file
+                comicImages.clear()
                 
                 // Use junrar library for RAR extraction
                 val archive = Archive(file)
@@ -724,14 +756,55 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     fileHeader = archive.nextFileHeader()
                 }
                 
-                // Sort by name and store paths only
+                if (fileHeaders.isEmpty()) {
+                    archive.close()
+                    withContext(Dispatchers.Main) {
+                        binding.loadingProgressBar.visibility = View.GONE
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            getString(R.string.error_cbr_invalid),
+                            Toast.LENGTH_LONG
+                        ).show()
+                        finish()
+                    }
+                    return@withContext
+                }
+                
+                // Sort by name
                 fileHeaders.sortBy { it.fileName }
+                
+                // Extract and decode images
                 for (header in fileHeaders) {
-                    comicImagePaths.add(Pair(header.fileName, "cbr"))
+                    try {
+                        val outputStream = ByteArrayOutputStream()
+                        archive.extractFile(header, outputStream)
+                        val bytes = outputStream.toByteArray()
+                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        if (bitmap != null) {
+                            comicImages.add(bitmap)
+                        }
+                        outputStream.close()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        // Continue with other images
+                    }
                 }
                 
                 archive.close()
-                totalComicPages = comicImagePaths.size
+                totalComicPages = comicImages.size
+                
+                if (totalComicPages == 0) {
+                    withContext(Dispatchers.Main) {
+                        binding.loadingProgressBar.visibility = View.GONE
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            getString(R.string.error_cbr_invalid),
+                            Toast.LENGTH_LONG
+                        ).show()
+                        finish()
+                    }
+                    return@withContext
+                }
                 
                 withContext(Dispatchers.Main) {
                     binding.apply {
@@ -741,31 +814,38 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         scrollView.visibility = View.GONE
                         textView.visibility = View.GONE
                     }
-                    
-                    if (totalComicPages > 0) {
-                        renderComicPage(currentPage)
-                    } else {
-                        Toast.makeText(
-                            this@ViewerActivity,
-                            "No images found in CBR file",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
+                    renderComicPage(currentPage)
+                }
+            } catch (e: com.github.junrar.exception.RarException) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    binding.loadingProgressBar.visibility = View.GONE
+                    Toast.makeText(
+                        this@ViewerActivity,
+                        getString(R.string.error_cbr_invalid),
+                        Toast.LENGTH_LONG
+                    ).show()
+                    finish()
+                }
+            } catch (e: OutOfMemoryError) {
+                comicImages.forEach { it.recycle() }
+                comicImages.clear()
+                withContext(Dispatchers.Main) {
+                    binding.loadingProgressBar.visibility = View.GONE
+                    Toast.makeText(
+                        this@ViewerActivity,
+                        getString(R.string.error_file_too_large, "100MB"),
+                        Toast.LENGTH_LONG
+                    ).show()
+                    finish()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
-                    binding.apply {
-                        loadingProgressBar.visibility = View.GONE
-                        scrollView.visibility = View.VISIBLE
-                        textView.visibility = View.VISIBLE
-                        pdfImageView.visibility = View.GONE
-                        webView.visibility = View.GONE
-                        
-                        textView.text = "Error loading CBR file: ${e.message}\n\n" +
-                                "File: ${file.name}\n" +
-                                "CBR files should contain image files (JPG, PNG, etc.)"
-                    }
+                    binding.loadingProgressBar.visibility = View.GONE
+                    val errorMsg = FileValidator.getErrorMessage(e, this@ViewerActivity, "cbr")
+                    Toast.makeText(this@ViewerActivity, errorMsg, Toast.LENGTH_LONG).show()
+                    finish()
                 }
             }
         }
@@ -774,136 +854,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun renderComicPage(pageIndex: Int) {
         if (pageIndex < 0 || pageIndex >= totalComicPages) return
         
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val imagePath = comicImagePaths[pageIndex]
-                val cacheKey = "comic_${currentBook?.id}_$pageIndex"
-                
-                // Check cache first
-                val cachedBitmap = bitmapCache.getBitmap(cacheKey)
-                if (cachedBitmap != null && !cachedBitmap.isRecycled) {
-                    withContext(Dispatchers.Main) {
-                        displayComicBitmap(cachedBitmap, pageIndex)
-                    }
-                    return@launch
-                }
-                
-                // Load bitmap on demand
-                val bitmap = when (imagePath.second) {
-                    "cbz" -> loadCbzImage(imagePath.first)
-                    "cbr" -> loadCbrImage(imagePath.first)
-                    else -> null
-                }
-                
-                if (bitmap != null) {
-                    // Optimize large images with subsampling
-                    val optimizedBitmap = optimizeBitmap(bitmap)
-                    
-                    // Cache the bitmap
-                    bitmapCache.put(cacheKey, optimizedBitmap)
-                    
-                    withContext(Dispatchers.Main) {
-                        displayComicBitmap(optimizedBitmap, pageIndex)
-                    }
-                    
-                    // Recycle original if different
-                    if (bitmap != optimizedBitmap && !bitmap.isRecycled) {
-                        bitmap.recycle()
-                    }
-                } else {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(
-                            this@ViewerActivity,
-                            "Error loading page $pageIndex",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(
-                        this@ViewerActivity,
-                        "Error loading page: ${e.message}",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        }
-    }
-    
-    private fun loadCbzImage(imagePath: String): Bitmap? {
-        return try {
-            val file = comicArchiveFile ?: return null
-            val zipFile = ApacheZipFile(file)
-            val entry = zipFile.getEntry(imagePath)
-            val inputStream = zipFile.getInputStream(entry)
-            val bitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream.close()
-            zipFile.close()
-            bitmap
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
-    
-    private fun loadCbrImage(imagePath: String): Bitmap? {
-        return try {
-            val file = comicArchiveFile ?: return null
-            val archive = Archive(file)
-            
-            // Find the specific file header
-            var fileHeader: FileHeader? = archive.nextFileHeader()
-            var targetHeader: FileHeader? = null
-            while (fileHeader != null) {
-                if (fileHeader.fileName == imagePath) {
-                    targetHeader = fileHeader
-                    break
-                }
-                fileHeader = archive.nextFileHeader()
-            }
-            
-            if (targetHeader != null) {
-                val outputStream = ByteArrayOutputStream()
-                archive.extractFile(targetHeader, outputStream)
-                val bytes = outputStream.toByteArray()
-                val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                outputStream.close()
-                archive.close()
-                bitmap
-            } else {
-                archive.close()
-                null
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
-    
-    private fun optimizeBitmap(bitmap: Bitmap): Bitmap {
-        // If bitmap is too large, scale it down
-        val maxDimension = 2048
-        val width = bitmap.width
-        val height = bitmap.height
-        
-        if (width <= maxDimension && height <= maxDimension) {
-            return bitmap
-        }
-        
-        val scale = minOf(
-            maxDimension.toFloat() / width,
-            maxDimension.toFloat() / height
-        )
-        
-        val scaledWidth = (width * scale).toInt()
-        val scaledHeight = (height * scale).toInt()
-        
-        return Bitmap.createScaledBitmap(bitmap, scaledWidth, scaledHeight, true)
-    }
-    
-    private fun displayComicBitmap(bitmap: Bitmap, pageIndex: Int) {
+        val bitmap = comicImages[pageIndex]
         binding.apply {
             pdfImageView.visibility = View.VISIBLE
             pdfImageView.setImageBitmap(bitmap)
@@ -917,123 +868,26 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
     
     private suspend fun loadText(file: File) {
-        withContext(Dispatchers.IO) {
-            try {
-                // For very large text files (>5MB), read with a limit to avoid OOM
-                val maxSize = 5 * 1024 * 1024 // 5MB limit for text files
-                val content = if (file.length() > maxSize) {
-                    // Read only first 5MB and add a notice
-                    val limitedContent = file.inputStream().bufferedReader().use { reader ->
-                        val buffer = CharArray(maxSize)
-                        val charsRead = reader.read(buffer)
-                        String(buffer, 0, charsRead)
-                    }
-                    "$limitedContent\n\n[File truncated - showing first 5MB of ${file.length() / 1024 / 1024}MB]"
-                } else {
-                    file.readText()
-                }
-                
-                withContext(Dispatchers.Main) {
-                    binding.apply {
-                        loadingProgressBar.visibility = View.GONE
-                        pdfImageView.visibility = View.GONE
-                        webView.visibility = View.GONE
-                        scrollView.visibility = View.VISIBLE
-                        textView.visibility = View.VISIBLE
-                        
-                        textView.text = content
-                        currentTextContent = content // Store for TTS
-                        
-                        // Enable text selection for highlighting
-                        textView.setTextIsSelectable(true)
-                        textView.customSelectionActionModeCallback = object : android.view.ActionMode.Callback {
-                            override fun onCreateActionMode(mode: android.view.ActionMode?, menu: android.view.Menu?): Boolean {
-                                menu?.add(0, 1, 0, getString(R.string.highlight_text))
-                                return true
-                            }
-                            
-                            override fun onPrepareActionMode(mode: android.view.ActionMode?, menu: android.view.Menu?): Boolean {
-                                return false
-                            }
-                            
-                            override fun onActionItemClicked(mode: android.view.ActionMode?, item: android.view.MenuItem?): Boolean {
-                                if (item?.itemId == 1) {
-                                    val start = textView.selectionStart
-                                    val end = textView.selectionEnd
-                                    if (start >= 0 && end > start) {
-                                        val selectedText = content.substring(start, end)
-                                        saveHighlight(selectedText, 0, start)
-                                    }
-                                    mode?.finish()
-                                    return true
-                                }
-                                return false
-                            }
-                            
-                            override fun onDestroyActionMode(mode: android.view.ActionMode?) {
-                                // Nothing to do
-                            }
-                        }
-                    }
-                    
-                    // Apply reading preferences
-                    val preferences = preferencesManager.getReadingPreferences()
-                    applyReadingPreferences(preferences)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                withContext(Dispatchers.Main) {
-                    binding.apply {
-                        loadingProgressBar.visibility = View.GONE
-                        scrollView.visibility = View.VISIBLE
-                        textView.visibility = View.VISIBLE
-                        pdfImageView.visibility = View.GONE
-                        webView.visibility = View.GONE
-                        
-                        textView.text = "Error loading text file: ${e.message}\n\n" +
-                                "File: ${file.name}\n" +
-                                "Size: ${file.length() / 1024} KB"
-                    }
-            }
+        val content = withContext(Dispatchers.IO) {
+            file.readText()
         }
-    }
-    
-    private fun saveHighlight(selectedText: String, page: Int, position: Int) {
-        currentBook?.let { book ->
-            lifecycleScope.launch {
-                try {
-                    val highlight = com.rifters.ebookreader.model.Highlight(
-                        bookId = book.id,
-                        selectedText = selectedText,
-                        page = page,
-                        position = position,
-                        color = android.graphics.Color.YELLOW,
-                        timestamp = System.currentTimeMillis()
-                    )
-                    
-                    val database = com.rifters.ebookreader.database.BookDatabase.getDatabase(this@ViewerActivity)
-                    database.highlightDao().insertHighlight(highlight)
-                    
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(
-                            this@ViewerActivity,
-                            getString(R.string.highlight_added),
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(
-                            this@ViewerActivity,
-                            "Error adding highlight: ${e.message}",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                }
+        
+        withContext(Dispatchers.Main) {
+            binding.apply {
+                loadingProgressBar.visibility = View.GONE
+                // pdfView.visibility = View.GONE
+                pdfImageView.visibility = View.GONE
+                webView.visibility = View.GONE
+                scrollView.visibility = View.VISIBLE
+                textView.visibility = View.VISIBLE
+                
+                textView.text = content
+                currentTextContent = content // Store for TTS
             }
-        } ?: run {
-            Toast.makeText(this, "No book loaded", Toast.LENGTH_SHORT).show()
+            
+            // Apply reading preferences
+            val preferences = preferencesManager.getReadingPreferences()
+            applyReadingPreferences(preferences)
         }
     }
     
@@ -1098,41 +952,36 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     
     private fun bookmarkCurrentPage() {
         currentBook?.let { book ->
-            val dialog = AddNoteDialogFragment.newInstance()
-            dialog.setOnNoteSavedListener { note ->
-                lifecycleScope.launch {
-                    try {
-                        val bookmark = com.rifters.ebookreader.model.Bookmark(
-                            bookId = book.id,
-                            page = currentPage,
-                            position = 0,
-                            note = note,
-                            timestamp = System.currentTimeMillis()
-                        )
-                        
-                        val database = com.rifters.ebookreader.database.BookDatabase.getDatabase(this@ViewerActivity)
-                        database.bookmarkDao().insertBookmark(bookmark)
-                        
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(
-                                this@ViewerActivity,
-                                getString(R.string.bookmark_added),
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(
-                                this@ViewerActivity,
-                                "Error adding bookmark: ${e.message}",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
+            lifecycleScope.launch {
+                try {
+                    val bookmark = com.rifters.ebookreader.model.Bookmark(
+                        bookId = book.id,
+                        page = currentPage,
+                        position = 0,
+                        timestamp = System.currentTimeMillis()
+                    )
+                    
+                    val database = com.rifters.ebookreader.database.BookDatabase.getDatabase(this@ViewerActivity)
+                    database.bookmarkDao().insertBookmark(bookmark)
+                    
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            getString(R.string.bookmark_added),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            "Error adding bookmark: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }
             }
-            dialog.show(supportFragmentManager, AddNoteDialogFragment.TAG)
         } ?: run {
             Toast.makeText(this, "No book loaded", Toast.LENGTH_SHORT).show()
         }
@@ -1145,18 +994,6 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 navigateToBookmark(bookmark)
             }
             bottomSheet.show(supportFragmentManager, BookmarksBottomSheet.TAG)
-        } ?: run {
-            Toast.makeText(this, "No book loaded", Toast.LENGTH_SHORT).show()
-        }
-    }
-    
-    private fun showHighlights() {
-        currentBook?.let { book ->
-            val bottomSheet = HighlightsBottomSheet.newInstance(book.id)
-            bottomSheet.setOnHighlightSelectedListener { highlight ->
-                navigateToHighlight(highlight)
-            }
-            bottomSheet.show(supportFragmentManager, HighlightsBottomSheet.TAG)
         } ?: run {
             Toast.makeText(this, "No book loaded", Toast.LENGTH_SHORT).show()
         }
@@ -1198,67 +1035,12 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
     
-    private fun navigateToHighlight(highlight: com.rifters.ebookreader.model.Highlight) {
-        if (pdfRenderer != null && totalPdfPages > 0) {
-            // For PDF files, navigate to the highlighted page
-            if (highlight.page in 0 until totalPdfPages) {
-                currentPage = highlight.page
-                renderPdfPage(currentPage)
-                Toast.makeText(
-                    this,
-                    getString(R.string.page_format, highlight.page + 1),
-                    Toast.LENGTH_SHORT
-                ).show()
-            } else {
-                Toast.makeText(this, "Invalid page number", Toast.LENGTH_SHORT).show()
-            }
-        } else if (totalComicPages > 0) {
-            // For comic books (CBZ/CBR), navigate to the highlighted page
-            if (highlight.page in 0 until totalComicPages) {
-                currentPage = highlight.page
-                renderComicPage(currentPage)
-                Toast.makeText(
-                    this,
-                    getString(R.string.page_format, highlight.page + 1),
-                    Toast.LENGTH_SHORT
-                ).show()
-            } else {
-                Toast.makeText(this, "Invalid page number", Toast.LENGTH_SHORT).show()
-            }
-        } else {
-            // For text-based formats, try to scroll to the position
-            Toast.makeText(
-                this,
-                "Navigated to highlight",
-                Toast.LENGTH_SHORT
-            ).show()
-        }
-    }
-    
     private fun showReadingSettings() {
         val bottomSheet = ReadingSettingsBottomSheet.newInstance()
         bottomSheet.setOnSettingsAppliedListener { preferences ->
             applyReadingPreferences(preferences)
         }
         bottomSheet.show(supportFragmentManager, ReadingSettingsBottomSheet.TAG)
-    }
-    
-    private fun navigateToLibrary() {
-        // Save current reading position before navigating away
-        currentBook?.let { book ->
-            bookViewModel.updateProgress(book.id, currentPage, currentProgressPercent)
-        }
-        
-        // Use NavUtils for proper up navigation to parent activity
-        val upIntent = android.content.Intent(this, MainActivity::class.java)
-        upIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        startActivity(upIntent)
-        finish()
-    }
-    
-    private fun navigateToSettings() {
-        val intent = android.content.Intent(this, SettingsActivity::class.java)
-        startActivity(intent)
     }
     
     private fun applyThemeToUI(preferences: ReadingPreferences) {
@@ -1333,36 +1115,6 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         )
     }
     
-    private fun injectTextSelectionScript() {
-        val script = """
-            (function() {
-                document.addEventListener('mouseup', function() {
-                    var selectedText = window.getSelection().toString().trim();
-                    if (selectedText.length > 0) {
-                        if (confirm('Highlight selected text?')) {
-                            AndroidInterface.onTextSelected(selectedText);
-                            window.getSelection().removeAllRanges();
-                        }
-                    }
-                });
-                
-                document.addEventListener('touchend', function() {
-                    setTimeout(function() {
-                        var selectedText = window.getSelection().toString().trim();
-                        if (selectedText.length > 0) {
-                            if (confirm('Highlight selected text?')) {
-                                AndroidInterface.onTextSelected(selectedText);
-                                window.getSelection().removeAllRanges();
-                            }
-                        }
-                    }, 100);
-                });
-            })();
-        """.trimIndent()
-        
-        binding.webView.evaluateJavascript(script, null)
-    }
-    
     override fun onPause() {
         super.onPause()
         // Save current position when leaving the activity
@@ -1386,12 +1138,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             e.printStackTrace()
         }
         
-        // Clear comic book references (bitmaps are managed by cache)
-        comicImagePaths.clear()
-        comicArchiveFile = null
-        
-        // Note: Don't clear the global cache here as it may be used by other instances
-        // The cache will auto-evict when memory is needed
+        // Clean up comic book images
+        comicImages.forEach { it.recycle() }
+        comicImages.clear()
         
         super.onDestroy()
     }

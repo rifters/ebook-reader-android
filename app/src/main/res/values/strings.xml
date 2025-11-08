@@ -147,4 +147,22 @@
     <!-- Navigation -->
     <string name="library">Library</string>
     <string name="app_settings">App Settings</string>
+    
+    <!-- Error Messages -->
+    <string name="error_file_not_found">File not found. The file may have been deleted or moved.</string>
+    <string name="error_file_corrupted">File appears to be corrupted or damaged. Please try a different file.</string>
+    <string name="error_file_too_large">File is too large. Maximum supported size is %1$s.</string>
+    <string name="error_file_empty">File is empty or has no content.</string>
+    <string name="error_invalid_format">Invalid file format. Expected %1$s file.</string>
+    <string name="error_no_read_permission">Cannot read file. Check file permissions.</string>
+    <string name="error_storage_full">Not enough storage space available.</string>
+    <string name="error_network_timeout">Network request timed out. Please try again.</string>
+    <string name="error_network_connection">Cannot connect to server. Check your internet connection.</string>
+    <string name="error_server_error">Server error. Please try again later.</string>
+    <string name="error_pdf_damaged">PDF file is damaged or encrypted.</string>
+    <string name="error_epub_invalid">EPUB file structure is invalid.</string>
+    <string name="error_mobi_invalid">MOBI file format is not supported or invalid.</string>
+    <string name="error_cbz_invalid">CBZ archive is corrupted or contains no images.</string>
+    <string name="error_cbr_invalid">CBR archive is corrupted or contains no images.</string>
+    <string name="error_adding_book">Failed to add book to library: %1$s</string>
 </resources>

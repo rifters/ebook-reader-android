@@ -1,3 +1,4 @@
+// Updated to AGP 8.2.2 and Kotlin 1.9.22 to fix Gradle 8.1+ compatibility
 buildscript {
     repositories {
         google()

@@ -1,7 +1,7 @@
 # GitHub Copilot Instructions for EBook Reader Android
 
 ## Project Overview
-This is an Android eBook reader application that supports EPUB and PDF formats. The app allows users to manage their digital book library, track reading progress, and enjoy a comfortable reading experience.
+This is an Android eBook reader application that supports multiple formats including PDF, EPUB, MOBI, TXT, and comic book formats (CBZ/CBR). The app allows users to manage their digital book library, track reading progress, and enjoy a comfortable reading experience.
 
 ## Technology Stack
 - **Language**: Kotlin
@@ -13,9 +13,13 @@ This is an Android eBook reader application that supports EPUB and PDF formats. 
 - **Database**: Room (SQLite)
 - **Async**: Coroutines and LiveData
 - **Libraries**:
-  - EPUB parsing: nl.siegmann.epublib:epublib-core:3.1
-  - PDF viewing: com.github.barteksc:android-pdf-viewer
+  - PDF viewing: Built-in Android PdfRenderer (API 21+)
+  - EPUB parsing: Custom implementation using built-in ZIP support
+  - MOBI support: Custom implementation for basic PalmDB format
+  - CBZ support: Apache Commons Compress 1.25.0
+  - CBR support: junrar 7.5.5
   - Navigation: AndroidX Navigation Component
+  - Preferences: AndroidX Preference Library
   - Dependency Injection: None (manual dependency management)
 
 ## Code Style and Conventions
@@ -36,25 +40,33 @@ This is an Android eBook reader application that supports EPUB and PDF formats. 
 ### Package Structure
 ```
 com.rifters.ebookreader/
-├── ui/              # Activities, Fragments, Adapters
+├── (root)           # Activities, Adapters (MainActivity, ViewerActivity, etc.)
+│   ├── MainActivity.kt               # Main book library screen
+│   ├── ViewerActivity.kt            # Book reader with format-specific viewers
+│   ├── NetworkBookActivity.kt       # Download books from URLs
+│   ├── SettingsActivity.kt          # App settings
+│   ├── AboutActivity.kt             # About screen
+│   ├── BookAdapter.kt               # RecyclerView adapter for book list
+│   ├── BookmarkAdapter.kt           # RecyclerView adapter for bookmarks
+│   ├── BookmarksBottomSheet.kt      # Bottom sheet for bookmark management
+│   └── ReadingSettingsBottomSheet.kt # Bottom sheet for reading preferences
 ├── viewmodel/       # ViewModels
 ├── database/        # Room database, DAOs
-├── repository/      # Data repositories
-├── model/           # Data models
+├── model/           # Data models (Bookmark, ReadingPreferences)
 └── util/            # Utility classes
 ```
 
 ## Architecture Patterns
 
 ### MVVM Pattern
-- **Model**: Data classes, Room entities, repositories
-- **View**: Activities, Fragments (UI layer)
-- **ViewModel**: Business logic, LiveData/StateFlow
+- **Model**: Data classes, Room entities
+- **View**: Activities, Fragments, Bottom Sheets (UI layer)
+- **ViewModel**: Business logic, LiveData, direct DAO interaction
 
 ### Data Flow
 1. View observes ViewModel's LiveData
-2. ViewModel interacts with Repository
-3. Repository manages data from Room database
+2. ViewModel interacts directly with DAO (no repository layer)
+3. DAO manages data from Room database
 4. Changes propagate back through LiveData observers
 
 ## Development Guidelines
@@ -62,7 +74,7 @@ com.rifters.ebookreader/
 ### Adding New Features
 1. Create data model (if needed) with Room entity
 2. Update DAO with necessary queries
-3. Create/update Repository layer
+3. Update ViewModel to interact with DAO using coroutines
 4. Implement ViewModel with LiveData
 5. Create UI with ViewBinding
 6. Wire up observers in Activity/Fragment
@@ -76,8 +88,9 @@ com.rifters.ebookreader/
 ### File Handling
 - Request storage permissions appropriately
 - Handle scoped storage for Android 10+
-- Support both EPUB and PDF formats
+- Support multiple formats: PDF, EPUB, MOBI, TXT, CBZ, CBR
 - Validate file integrity before processing
+- Use document picker (ACTION_OPEN_DOCUMENT) for file selection
 
 ### UI Development
 - Use Material 3 theme defined in themes.xml
@@ -85,6 +98,19 @@ com.rifters.ebookreader/
 - Add all strings to strings.xml (no hardcoded text)
 - Use ConstraintLayout or LinearLayout as appropriate
 - Implement proper error handling and user feedback
+- Use Bottom Sheets (BottomSheetDialogFragment) for overlays and settings
+
+### Reading Features
+- **Bookmarks**: Managed via BookmarksBottomSheet with Room persistence
+  - Entity: Bookmark (id, bookId, page, position, note, timestamp)
+  - DAO: BookmarkDao for CRUD operations
+- **Reading Preferences**: Managed via ReadingSettingsBottomSheet
+  - Model: ReadingPreferences (fontFamily, theme, lineSpacing, margins)
+  - Themes: Light, Dark, Sepia with customizable colors
+  - Stored in SharedPreferences via PreferencesManager utility
+- **Network Downloads**: NetworkBookActivity for downloading books from URLs
+  - Downloads to app-specific storage directory
+  - Automatic addition to library after successful download
 
 ## Building and Testing
 
@@ -123,13 +149,42 @@ com.rifters.ebookreader/
 - DAO: Create interface with `@Dao` and query methods
 - Database: Add entity to `@Database` annotation
 - Use coroutines for database operations (suspend functions)
+- ViewModels interact directly with DAOs using viewModelScope
 
 ### Implementing New Book Format
-1. Add parsing library dependency
-2. Create parser/reader implementation
+1. Add parsing library dependency (if needed - prefer custom implementation)
+2. Create parser/reader implementation in ViewerActivity
 3. Update Book entity if needed
-4. Add MIME type support in ViewerActivity
-5. Update file picker to accept new format
+4. Add MIME type and file extension handling in ViewerActivity
+5. Update file picker to accept new format (modify documentIntent in MainActivity)
+
+## Supported File Formats
+
+### E-Book Formats
+- **PDF**: Rendered using Android's built-in `PdfRenderer` API (API 21+)
+  - Implementation: Direct rendering to ImageView/Bitmap
+  - No external dependencies required
+- **EPUB**: Custom parser using built-in Java ZIP utilities
+  - Implementation: ZIP extraction and HTML content parsing
+  - No external dependencies required
+- **MOBI**: Custom implementation for basic PalmDB format
+  - Implementation: Binary format parsing for text extraction
+  - No external dependencies required
+- **TXT**: Plain text files displayed in TextView
+  - Implementation: Direct file reading with encoding detection
+
+### Comic Book Formats
+- **CBZ**: ZIP-based comic book archives
+  - Library: Apache Commons Compress 1.25.0
+  - Implementation: Extract and display images in sequence
+- **CBR**: RAR-based comic book archives
+  - Library: junrar 7.5.5
+  - Implementation: Extract and display images in sequence
+
+### Format Detection
+- File extension-based detection in ViewerActivity
+- MIME type verification where applicable
+- Graceful fallback for unsupported formats
 
 ## Security and Permissions
 - Request permissions at runtime (not just in manifest)
@@ -158,6 +213,12 @@ com.rifters.ebookreader/
 - Room database for persistent storage
 - LiveData for reactive UI updates
 - Material Design 3 theming
+- ViewModels interact directly with DAOs (no repository layer)
+- Custom implementations for PDF, EPUB, and MOBI parsing using Android built-in APIs
+- Apache Commons Compress for CBZ (ZIP-based comic books)
+- junrar library for CBR (RAR-based comic books)
+- Bottom sheets for settings and bookmarks UI
+- Document picker (ACTION_OPEN_DOCUMENT) for file selection
 
 ## What to Avoid
 - Don't use findViewById (use ViewBinding)

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        android:title="Display"
+        android:key="display_category">
+
+        <SwitchPreferenceCompat
+            android:key="night_mode"
+            android:title="@string/night_mode"
+            android:summary="Enable dark theme for reading"
+            android:defaultValue="false" />
+
+        <SeekBarPreference
+            android:key="text_size"
+            android:title="@string/text_size"
+            android:summary="Adjust reading text size"
+            android:max="10"
+            android:defaultValue="5"
+            app:showSeekBarValue="true" />
+
+        <SeekBarPreference
+            android:key="brightness"
+            android:title="@string/brightness"
+            android:summary="Adjust screen brightness"
+            android:max="100"
+            android:defaultValue="50"
+            app:showSeekBarValue="true" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:title="Reading"
+        android:key="reading_category">
+
+        <SwitchPreferenceCompat
+            android:key="auto_bookmark"
+            android:title="Auto Bookmark"
+            android:summary="Automatically bookmark when closing a book"
+            android:defaultValue="true" />
+
+        <SwitchPreferenceCompat
+            android:key="keep_screen_on"
+            android:title="Keep Screen On"
+            android:summary="Prevent screen from turning off while reading"
+            android:defaultValue="false" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:title="Storage"
+        android:key="storage_category">
+
+        <Preference
+            android:key="storage_location"
+            android:title="Storage Location"
+            android:summary="Change where books are stored" />
+
+        <Preference
+            android:key="clear_cache"
+            android:title="Clear Cache"
+            android:summary="Remove cached data" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen>

@@ -1,20 +1,35 @@
 package com.rifters.ebookreader
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.rifters.ebookreader.databinding.ActivityMainBinding
 import com.rifters.ebookreader.viewmodel.BookViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 
 class MainActivity : AppCompatActivity() {
     
     private lateinit var binding: ActivityMainBinding
     private lateinit var bookViewModel: BookViewModel
     private lateinit var bookAdapter: BookAdapter
+    
+    private val filePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let { handleSelectedFile(it) }
+    }
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,7 +82,86 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun openFilePicker() {
-        // TODO: Implement file picker functionality
+        filePickerLauncher.launch("*/*")
+    }
+    
+    private fun handleSelectedFile(uri: Uri) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val inputStream = contentResolver.openInputStream(uri)
+                if (inputStream == null) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Failed to open file",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    return@launch
+                }
+                
+                // Get file name and create local copy
+                val fileName = getFileName(uri) ?: "book_${System.currentTimeMillis()}"
+                val storageDir = getExternalFilesDir(null) ?: filesDir
+                val file = File(storageDir, fileName)
+                
+                // Copy file to app storage
+                FileOutputStream(file).use { outputStream ->
+                    inputStream.copyTo(outputStream)
+                }
+                inputStream.close()
+                
+                // Determine MIME type
+                val mimeType = when {
+                    fileName.endsWith(".pdf", ignoreCase = true) -> "application/pdf"
+                    fileName.endsWith(".epub", ignoreCase = true) -> "application/epub+zip"
+                    fileName.endsWith(".txt", ignoreCase = true) -> "text/plain"
+                    else -> contentResolver.getType(uri) ?: "application/octet-stream"
+                }
+                
+                // Create book entry
+                val book = Book(
+                    title = fileName.substringBeforeLast('.'),
+                    author = "Unknown",
+                    filePath = file.absolutePath,
+                    fileSize = file.length(),
+                    mimeType = mimeType,
+                    dateAdded = System.currentTimeMillis()
+                )
+                
+                bookViewModel.insertBook(book)
+                
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Book added: ${book.title}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "Error adding book: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
+    
+    private fun getFileName(uri: Uri): String? {
+        var fileName: String? = null
+        contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (nameIndex >= 0) {
+                    fileName = cursor.getString(nameIndex)
+                }
+            }
+        }
+        return fileName ?: uri.lastPathSegment
     }
     
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -83,9 +177,13 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             R.id.action_settings -> {
+                val intent = Intent(this, SettingsActivity::class.java)
+                startActivity(intent)
                 true
             }
             R.id.action_about -> {
+                val intent = Intent(this, AboutActivity::class.java)
+                startActivity(intent)
                 true
             }
             else -> super.onOptionsItemSelected(item)

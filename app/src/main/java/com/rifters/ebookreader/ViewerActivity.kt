@@ -58,6 +58,12 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var isTtsPlaying = false
     private var currentTextContent: String = ""
     
+    // Table of Contents
+    private var tableOfContents: List<com.rifters.ebookreader.model.TableOfContentsItem> = emptyList()
+    
+    // Night mode state
+    private var isNightModeEnabled = false
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityViewerBinding.inflate(layoutInflater)
@@ -115,8 +121,20 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 showBookmarks()
                 true
             }
+            R.id.action_view_highlights -> {
+                showHighlights()
+                true
+            }
+            R.id.action_table_of_contents -> {
+                showTableOfContents()
+                true
+            }
             R.id.action_tts_play -> {
                 toggleTTS()
+                true
+            }
+            R.id.action_toggle_night_mode -> {
+                toggleNightMode()
                 true
             }
             R.id.action_customize_reading -> {
@@ -403,13 +421,25 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 page.close()
                 
                 withContext(Dispatchers.Main) {
-                    binding.apply {
-                        pdfImageView.visibility = View.VISIBLE
-                        pdfImageView.setImageBitmap(bitmap)
-                        webView.visibility = View.GONE
-                        scrollView.visibility = View.GONE
-                        textView.visibility = View.GONE
-                    }
+                    // Apply page flip animation
+                    binding.pdfImageView.animate()
+                        .alpha(0f)
+                        .setDuration(150)
+                        .withEndAction {
+                            binding.apply {
+                                pdfImageView.visibility = View.VISIBLE
+                                pdfImageView.setImageBitmap(bitmap)
+                                webView.visibility = View.GONE
+                                scrollView.visibility = View.GONE
+                                textView.visibility = View.GONE
+                            }
+                            
+                            binding.pdfImageView.animate()
+                                .alpha(1f)
+                                .setDuration(150)
+                                .start()
+                        }
+                        .start()
                     
                     currentPage = pageIndex
                     updateProgress(pageIndex, totalPdfPages)
@@ -432,6 +462,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             try {
                 val zipFile = ZipFile(file)
                 val entries = zipFile.entries()
+                
+                // Parse table of contents from EPUB
+                parseEpubToc(zipFile)
                 
                 // Find the first HTML/XHTML content file
                 var contentHtml = ""
@@ -480,11 +513,35 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             useWideViewPort = true
                         }
                         
+                        // Enable text selection for dictionary lookup
+                        webView.setOnLongClickListener {
+                            val result = (it as WebView).hitTestResult
+                            if (result.type == WebView.HitTestResult.SRC_ANCHOR_TYPE ||
+                                result.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE ||
+                                result.type == WebView.HitTestResult.IMAGE_TYPE) {
+                                // Let WebView handle long press on links/images
+                                false
+                            } else {
+                                // Enable text selection and dictionary lookup
+                                false
+                            }
+                        }
+                        
                         webView.webViewClient = object : android.webkit.WebViewClient() {
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
                                 val preferences = preferencesManager.getReadingPreferences()
                                 applyWebViewStyles(preferences)
+                                
+                                // Inject JavaScript for text selection and dictionary support
+                                view?.loadUrl("javascript:(function() { " +
+                                    "document.addEventListener('selectionchange', function() { " +
+                                    "  var selection = window.getSelection(); " +
+                                    "  if (selection && selection.toString().length > 0) { " +
+                                    "    Android.onTextSelected(selection.toString()); " +
+                                    "  } " +
+                                    "}); " +
+                                "})()")
                             }
                         }
                         
@@ -512,6 +569,50 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     finish()
                 }
             }
+        }
+    }
+    
+    private fun parseEpubToc(zipFile: ZipFile) {
+        try {
+            val tocItems = mutableListOf<com.rifters.ebookreader.model.TableOfContentsItem>()
+            val entries = zipFile.entries()
+            
+            // Look for toc.ncx or nav.xhtml file
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
+                val name = entry.name.lowercase()
+                
+                if (name.endsWith("toc.ncx") || name.endsWith("nav.xhtml") || name.contains("toc")) {
+                    val inputStream = zipFile.getInputStream(entry)
+                    val content = inputStream.bufferedReader().use { it.readText() }
+                    
+                    // Simple regex-based parsing for demonstration
+                    // In a production app, use proper XML parsing
+                    val navPointPattern = """<navLabel>.*?<text>(.*?)</text>.*?<content src="(.*?)"""".toRegex(RegexOption.DOT_MATCHES_ALL)
+                    val matches = navPointPattern.findAll(content)
+                    
+                    matches.forEachIndexed { index, match ->
+                        val title = match.groupValues[1].trim()
+                        val href = match.groupValues[2].trim()
+                        tocItems.add(
+                            com.rifters.ebookreader.model.TableOfContentsItem(
+                                title = title,
+                                href = href,
+                                page = index,
+                                level = 0
+                            )
+                        )
+                    }
+                    
+                    break
+                }
+            }
+            
+            tableOfContents = tocItems
+        } catch (e: Exception) {
+            // If TOC parsing fails, just continue without it
+            e.printStackTrace()
+            tableOfContents = emptyList()
         }
     }
     
@@ -855,13 +956,26 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (pageIndex < 0 || pageIndex >= totalComicPages) return
         
         val bitmap = comicImages[pageIndex]
-        binding.apply {
-            pdfImageView.visibility = View.VISIBLE
-            pdfImageView.setImageBitmap(bitmap)
-            webView.visibility = View.GONE
-            scrollView.visibility = View.GONE
-            textView.visibility = View.GONE
-        }
+        
+        // Apply page flip animation
+        binding.pdfImageView.animate()
+            .alpha(0f)
+            .setDuration(150)
+            .withEndAction {
+                binding.apply {
+                    pdfImageView.visibility = View.VISIBLE
+                    pdfImageView.setImageBitmap(bitmap)
+                    webView.visibility = View.GONE
+                    scrollView.visibility = View.GONE
+                    textView.visibility = View.GONE
+                }
+                
+                binding.pdfImageView.animate()
+                    .alpha(1f)
+                    .setDuration(150)
+                    .start()
+            }
+            .start()
         
         currentPage = pageIndex
         updateProgress(pageIndex, totalComicPages)
@@ -999,6 +1113,54 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
     
+    private fun showHighlights() {
+        currentBook?.let { book ->
+            val bottomSheet = HighlightsBottomSheet.newInstance(book.id)
+            bottomSheet.setOnHighlightSelectedListener { highlight ->
+                navigateToHighlight(highlight)
+            }
+            bottomSheet.show(supportFragmentManager, HighlightsBottomSheet.TAG)
+        } ?: run {
+            Toast.makeText(this, "No book loaded", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    private fun navigateToHighlight(highlight: com.rifters.ebookreader.model.Highlight) {
+        if (pdfRenderer != null && totalPdfPages > 0) {
+            // For PDF files, navigate to the highlighted page
+            if (highlight.page in 0 until totalPdfPages) {
+                currentPage = highlight.page
+                renderPdfPage(currentPage)
+                Toast.makeText(
+                    this,
+                    getString(R.string.page_format, highlight.page + 1),
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                Toast.makeText(this, "Invalid page number", Toast.LENGTH_SHORT).show()
+            }
+        } else if (totalComicPages > 0) {
+            // For comic books (CBZ/CBR), navigate to the highlighted page
+            if (highlight.page in 0 until totalComicPages) {
+                currentPage = highlight.page
+                renderComicPage(currentPage)
+                Toast.makeText(
+                    this,
+                    getString(R.string.page_format, highlight.page + 1),
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                Toast.makeText(this, "Invalid page number", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(
+                this,
+                "Page navigation not available for this format",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+    
     private fun navigateToBookmark(bookmark: Bookmark) {
         if (pdfRenderer != null && totalPdfPages > 0) {
             // For PDF files, navigate to the bookmarked page
@@ -1041,6 +1203,127 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             applyReadingPreferences(preferences)
         }
         bottomSheet.show(supportFragmentManager, ReadingSettingsBottomSheet.TAG)
+    }
+    
+    private fun showTableOfContents() {
+        if (tableOfContents.isEmpty()) {
+            Toast.makeText(this, R.string.no_table_of_contents, Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val bottomSheet = TocBottomSheet.newInstance(tableOfContents)
+        bottomSheet.setOnTocItemSelectedListener { tocItem ->
+            navigateToTocItem(tocItem)
+        }
+        bottomSheet.show(supportFragmentManager, TocBottomSheet.TAG)
+    }
+    
+    private fun navigateToTocItem(tocItem: com.rifters.ebookreader.model.TableOfContentsItem) {
+        // Navigation depends on the book format
+        if (pdfRenderer != null && totalPdfPages > 0) {
+            // For PDF files, navigate to the page
+            if (tocItem.page in 0 until totalPdfPages) {
+                currentPage = tocItem.page
+                renderPdfPage(currentPage)
+                Toast.makeText(
+                    this,
+                    getString(R.string.page_format, tocItem.page + 1),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        } else if (binding.webView.visibility == View.VISIBLE) {
+            // For EPUB files, navigate using the href
+            binding.webView.loadUrl("javascript:window.location.hash='${tocItem.href}'")
+            Toast.makeText(this, tocItem.title, Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    private fun toggleNightMode() {
+        isNightModeEnabled = !isNightModeEnabled
+        applyNightMode()
+        
+        val message = if (isNightModeEnabled) {
+            R.string.night_mode_on
+        } else {
+            R.string.night_mode_off
+        }
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun applyNightMode() {
+        val backgroundColor: Int
+        val textColor: Int
+        
+        if (isNightModeEnabled) {
+            // Dark theme colors
+            backgroundColor = 0xFF1C1C1C.toInt() // Dark gray
+            textColor = 0xFFE0E0E0.toInt() // Light gray
+        } else {
+            // Light theme colors  
+            backgroundColor = 0xFFFFFFFF.toInt() // White
+            textColor = 0xFF000000.toInt() // Black
+        }
+        
+        // Apply to content container
+        binding.contentContainer.setBackgroundColor(backgroundColor)
+        
+        // Apply to TextView (for TXT files)
+        if (binding.textView.visibility == View.VISIBLE) {
+            binding.textView.setTextColor(textColor)
+        }
+        
+        // Apply to WebView (for EPUB files)
+        if (binding.webView.visibility == View.VISIBLE) {
+            val css = if (isNightModeEnabled) {
+                "body { background-color: #1C1C1C !important; color: #E0E0E0 !important; }"
+            } else {
+                "body { background-color: #FFFFFF !important; color: #000000 !important; }"
+            }
+            binding.webView.loadUrl("javascript:(function() { " +
+                    "var style = document.getElementById('night-mode-style'); " +
+                    "if (!style) { " +
+                    "  style = document.createElement('style'); " +
+                    "  style.id = 'night-mode-style'; " +
+                    "  document.head.appendChild(style); " +
+                    "} " +
+                    "style.innerHTML = '$css'; " +
+                    "})()")
+        }
+        
+        // Apply to PDF ImageView (affects background behind the image)
+        if (binding.pdfImageView.visibility == View.VISIBLE) {
+            binding.pdfImageView.setBackgroundColor(backgroundColor)
+        }
+    }
+    
+    private fun lookupWord(word: String) {
+        if (word.isBlank()) {
+            return
+        }
+        
+        try {
+            // Try to use Android's built-in dictionary/define intent
+            val intent = android.content.Intent(android.content.Intent.ACTION_DEFINE)
+            intent.putExtra(android.content.Intent.EXTRA_TEXT, word)
+            
+            // Check if there's an app that can handle this intent
+            if (intent.resolveActivity(packageManager) != null) {
+                startActivity(intent)
+            } else {
+                // Fallback: Use web search for definition
+                val searchIntent = android.content.Intent(android.content.Intent.ACTION_WEB_SEARCH)
+                searchIntent.putExtra(android.app.SearchManager.QUERY, "define $word")
+                
+                if (searchIntent.resolveActivity(packageManager) != null) {
+                    startActivity(searchIntent)
+                } else {
+                    Toast.makeText(this, R.string.no_dictionary_app, Toast.LENGTH_SHORT).show()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, R.string.no_dictionary_app, Toast.LENGTH_SHORT).show()
+        }
     }
     
     private fun applyThemeToUI(preferences: ReadingPreferences) {

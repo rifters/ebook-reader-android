@@ -1,6 +1,9 @@
 package com.rifters.ebookreader
 
 import android.os.Bundle
+import android.speech.tts.TextToSpeech
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.webkit.WebView
 import android.widget.Toast
@@ -14,13 +17,20 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Locale
 
-class ViewerActivity : AppCompatActivity() {
+class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     
     private lateinit var binding: ActivityViewerBinding
     private lateinit var bookViewModel: BookViewModel
     private var currentBook: Book? = null
     private var currentPage: Int = 0
+    
+    // TTS variables
+    private var textToSpeech: TextToSpeech? = null
+    private var isTtsInitialized = false
+    private var isTtsPlaying = false
+    private var currentTextContent: String = ""
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,7 +41,25 @@ class ViewerActivity : AppCompatActivity() {
         
         setupToolbar()
         setupBottomBar()
+        setupTTS()
         loadBookFromIntent()
+    }
+    
+    private fun setupTTS() {
+        textToSpeech = TextToSpeech(this, this)
+    }
+    
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            val result = textToSpeech?.setLanguage(Locale.getDefault())
+            isTtsInitialized = result != TextToSpeech.LANG_MISSING_DATA && 
+                              result != TextToSpeech.LANG_NOT_SUPPORTED
+            if (!isTtsInitialized) {
+                Toast.makeText(this, "TTS language not supported", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(this, "TTS initialization failed", Toast.LENGTH_SHORT).show()
+        }
     }
     
     private fun setupToolbar() {
@@ -41,6 +69,63 @@ class ViewerActivity : AppCompatActivity() {
         binding.toolbar.setNavigationOnClickListener {
             finish()
         }
+    }
+    
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.viewer_menu, menu)
+        updateTtsMenuIcon(menu)
+        return true
+    }
+    
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_tts_play -> {
+                toggleTTS()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+    
+    private fun updateTtsMenuIcon(menu: Menu) {
+        val ttsItem = menu.findItem(R.id.action_tts_play)
+        if (isTtsPlaying) {
+            ttsItem?.title = getString(R.string.tts_pause)
+            ttsItem?.setIcon(android.R.drawable.ic_media_pause)
+        } else {
+            ttsItem?.title = getString(R.string.tts_play)
+            ttsItem?.setIcon(android.R.drawable.ic_media_play)
+        }
+    }
+    
+    private fun toggleTTS() {
+        if (!isTtsInitialized) {
+            Toast.makeText(this, "TTS not initialized", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        if (isTtsPlaying) {
+            pauseTTS()
+        } else {
+            playTTS()
+        }
+        invalidateOptionsMenu()
+    }
+    
+    private fun playTTS() {
+        if (currentTextContent.isNotEmpty()) {
+            textToSpeech?.speak(currentTextContent, TextToSpeech.QUEUE_FLUSH, null, "tts_id")
+            isTtsPlaying = true
+            Toast.makeText(this, "TTS started", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "No text content to read", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    private fun pauseTTS() {
+        textToSpeech?.stop()
+        isTtsPlaying = false
+        Toast.makeText(this, "TTS stopped", Toast.LENGTH_SHORT).show()
     }
     
     private fun setupBottomBar() {
@@ -214,6 +299,7 @@ class ViewerActivity : AppCompatActivity() {
                 scrollView.visibility = View.VISIBLE
                 
                 textView.text = content
+                currentTextContent = content // Store for TTS
             }
         }
     }
@@ -251,5 +337,14 @@ class ViewerActivity : AppCompatActivity() {
         currentBook?.let { book ->
             bookViewModel.updateProgress(book.id, currentPage, book.progressPercentage)
         }
+    }
+    
+    override fun onDestroy() {
+        // Shutdown TTS
+        if (textToSpeech != null) {
+            textToSpeech?.stop()
+            textToSpeech?.shutdown()
+        }
+        super.onDestroy()
     }
 }

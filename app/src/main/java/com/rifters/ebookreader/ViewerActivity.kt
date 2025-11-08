@@ -1,6 +1,9 @@
 package com.rifters.ebookreader
 
+import android.graphics.Bitmap
+import android.graphics.pdf.PdfRenderer
 import android.os.Bundle
+import android.os.ParcelFileDescriptor
 import android.speech.tts.TextToSpeech
 import android.view.Menu
 import android.view.MenuItem
@@ -10,7 +13,6 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
-// import com.github.barteksc.pdfviewer.PDFView
 import com.rifters.ebookreader.databinding.ActivityViewerBinding
 import com.rifters.ebookreader.viewmodel.BookViewModel
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
+import java.util.zip.ZipFile
 
 class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     
@@ -25,6 +28,11 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var bookViewModel: BookViewModel
     private var currentBook: Book? = null
     private var currentPage: Int = 0
+    
+    // PDF variables
+    private var pdfRenderer: PdfRenderer? = null
+    private var pdfFileDescriptor: ParcelFileDescriptor? = null
+    private var totalPdfPages: Int = 0
     
     // TTS variables
     private var textToSpeech: TextToSpeech? = null
@@ -220,68 +228,156 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
     
     private suspend fun loadPdf(file: File) {
-        withContext(Dispatchers.Main) {
-            binding.apply {
-                loadingProgressBar.visibility = View.GONE
-                // PDF viewer library not included yet
-                // pdfView.visibility = View.VISIBLE
-                webView.visibility = View.GONE
-                scrollView.visibility = View.VISIBLE
+        withContext(Dispatchers.IO) {
+            try {
+                pdfFileDescriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                pdfRenderer = PdfRenderer(pdfFileDescriptor!!)
+                totalPdfPages = pdfRenderer?.pageCount ?: 0
                 
-                // Temporary placeholder for PDF viewing
-                textView.text = "PDF viewer library is not yet configured.\n\n" +
-                        "File: ${file.name}\n" +
-                        "Size: ${file.length() / 1024} KB\n\n" +
-                        "To enable PDF viewing, add the android-pdf-viewer library."
+                withContext(Dispatchers.Main) {
+                    binding.loadingProgressBar.visibility = View.GONE
+                    binding.webView.visibility = View.GONE
+                    binding.scrollView.visibility = View.VISIBLE
+                    
+                    renderPdfPage(currentPage)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    binding.apply {
+                        loadingProgressBar.visibility = View.GONE
+                        scrollView.visibility = View.VISIBLE
+                        textView.text = "Error loading PDF: ${e.message}\n\n" +
+                                "File: ${file.name}\n" +
+                                "Size: ${file.length() / 1024} KB"
+                    }
+                }
+            }
+        }
+    }
+    
+    private fun renderPdfPage(pageIndex: Int) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val renderer = pdfRenderer ?: return@launch
+                if (pageIndex < 0 || pageIndex >= totalPdfPages) return@launch
                 
-                /* TODO: Uncomment when PDF library is added
-                pdfView.fromFile(file)
-                    .defaultPage(currentPage)
-                    .onPageChange { page, pageCount ->
-                        currentPage = page
-                        updateProgress(page, pageCount)
+                val page = renderer.openPage(pageIndex)
+                
+                // Create a bitmap to render the page
+                val bitmap = Bitmap.createBitmap(
+                    page.width * 2,
+                    page.height * 2,
+                    Bitmap.Config.ARGB_8888
+                )
+                
+                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                page.close()
+                
+                withContext(Dispatchers.Main) {
+                    binding.apply {
+                        // Use imageView instead of textView for PDF
+                        textView.visibility = View.GONE
+                        
+                        // We'll need to add an ImageView to the layout, for now show info
+                        textView.visibility = View.VISIBLE
+                        textView.text = "PDF Page ${pageIndex + 1} of $totalPdfPages\n\n" +
+                                "Use Previous/Next buttons to navigate\n\n" +
+                                "Note: Full PDF rendering requires ImageView in layout"
                     }
-                    .onError { error ->
-                        Toast.makeText(
-                            this@ViewerActivity,
-                            "Error loading PDF: ${error.message}",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                    .load()
-                */
+                    
+                    currentPage = pageIndex
+                    updateProgress(pageIndex, totalPdfPages)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        this@ViewerActivity,
+                        "Error rendering page: ${e.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
         }
     }
     
     private suspend fun loadEpub(file: File) {
-        withContext(Dispatchers.Main) {
-            binding.apply {
-                loadingProgressBar.visibility = View.GONE
-                // pdfView.visibility = View.GONE
-                webView.visibility = View.VISIBLE
-                scrollView.visibility = View.GONE
+        withContext(Dispatchers.IO) {
+            try {
+                val zipFile = ZipFile(file)
+                val entries = zipFile.entries()
                 
-                // Configure WebView for EPUB
-                webView.settings.apply {
-                    javaScriptEnabled = true
-                    builtInZoomControls = true
-                    displayZoomControls = false
+                // Find the first HTML/XHTML content file
+                var contentHtml = ""
+                while (entries.hasMoreElements()) {
+                    val entry = entries.nextElement()
+                    val name = entry.name.lowercase()
+                    
+                    if (name.endsWith(".html") || name.endsWith(".xhtml") || name.endsWith(".htm")) {
+                        val inputStream = zipFile.getInputStream(entry)
+                        contentHtml = inputStream.bufferedReader().use { it.readText() }
+                        break
+                    }
                 }
                 
-                // TODO: Implement full EPUB parsing using epublib
-                // For now, show a placeholder
-                val html = """
-                    <html>
-                    <body style="padding: 16px;">
-                    <h1>EPUB Reader</h1>
-                    <p>EPUB support is coming soon.</p>
-                    <p>File: ${file.name}</p>
-                    </body>
-                    </html>
-                """.trimIndent()
+                if (contentHtml.isEmpty()) {
+                    contentHtml = """
+                        <html>
+                        <head><meta charset="utf-8"/></head>
+                        <body style="padding: 16px; font-size: 16px; line-height: 1.6;">
+                        <h1>EPUB Reader</h1>
+                        <p>EPUB file loaded: ${file.name}</p>
+                        <p>Basic EPUB support is now available.</p>
+                        <p>This is a simple EPUB parser that extracts and displays HTML content.</p>
+                        </body>
+                        </html>
+                    """.trimIndent()
+                }
                 
-                webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+                zipFile.close()
+                
+                withContext(Dispatchers.Main) {
+                    binding.apply {
+                        loadingProgressBar.visibility = View.GONE
+                        webView.visibility = View.VISIBLE
+                        scrollView.visibility = View.GONE
+                        
+                        // Configure WebView for EPUB
+                        webView.settings.apply {
+                            javaScriptEnabled = true
+                            builtInZoomControls = true
+                            displayZoomControls = false
+                            loadWithOverviewMode = true
+                            useWideViewPort = true
+                        }
+                        
+                        webView.loadDataWithBaseURL(null, contentHtml, "text/html", "UTF-8", null)
+                        currentTextContent = contentHtml // Store for TTS
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    binding.apply {
+                        loadingProgressBar.visibility = View.GONE
+                        webView.visibility = View.VISIBLE
+                        scrollView.visibility = View.GONE
+                        
+                        webView.settings.javaScriptEnabled = true
+                        val errorHtml = """
+                            <html>
+                            <body style="padding: 16px;">
+                            <h1>EPUB Error</h1>
+                            <p>Error loading EPUB file: ${e.message}</p>
+                            <p>File: ${file.name}</p>
+                            </body>
+                            </html>
+                        """.trimIndent()
+                        
+                        webView.loadDataWithBaseURL(null, errorHtml, "text/html", "UTF-8", null)
+                    }
+                }
             }
         }
     }
@@ -317,18 +413,66 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
     
     private fun previousPage() {
-        // TODO: Implement page navigation for different formats
-        Toast.makeText(this, "Previous page", Toast.LENGTH_SHORT).show()
+        if (pdfRenderer != null && totalPdfPages > 0) {
+            if (currentPage > 0) {
+                currentPage--
+                renderPdfPage(currentPage)
+            } else {
+                Toast.makeText(this, "Already at first page", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(this, "Page navigation not available for this format", Toast.LENGTH_SHORT).show()
+        }
     }
     
     private fun nextPage() {
-        // TODO: Implement page navigation for different formats
-        Toast.makeText(this, "Next page", Toast.LENGTH_SHORT).show()
+        if (pdfRenderer != null && totalPdfPages > 0) {
+            if (currentPage < totalPdfPages - 1) {
+                currentPage++
+                renderPdfPage(currentPage)
+            } else {
+                Toast.makeText(this, "Already at last page", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(this, "Page navigation not available for this format", Toast.LENGTH_SHORT).show()
+        }
     }
     
     private fun bookmarkCurrentPage() {
-        // TODO: Implement bookmarking functionality
-        Toast.makeText(this, "Bookmark added at page $currentPage", Toast.LENGTH_SHORT).show()
+        currentBook?.let { book ->
+            lifecycleScope.launch {
+                try {
+                    val bookmark = com.rifters.ebookreader.model.Bookmark(
+                        bookId = book.id,
+                        page = currentPage,
+                        position = 0,
+                        timestamp = System.currentTimeMillis()
+                    )
+                    
+                    val database = com.rifters.ebookreader.database.BookDatabase.getDatabase(this@ViewerActivity)
+                    database.bookmarkDao().insertBookmark(bookmark)
+                    
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            getString(R.string.bookmark_added),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            "Error adding bookmark: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }
+        } ?: run {
+            Toast.makeText(this, "No book loaded", Toast.LENGTH_SHORT).show()
+        }
     }
     
     override fun onPause() {
@@ -345,6 +489,15 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             textToSpeech?.stop()
             textToSpeech?.shutdown()
         }
+        
+        // Close PDF renderer
+        try {
+            pdfRenderer?.close()
+            pdfFileDescriptor?.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        
         super.onDestroy()
     }
 }

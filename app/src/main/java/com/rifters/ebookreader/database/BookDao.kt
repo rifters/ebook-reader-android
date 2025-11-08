@@ -27,8 +27,23 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE (title LIKE '%' || :query || '%' OR author LIKE '%' || :query || '%') ORDER BY lastOpened DESC")
     fun searchBooks(query: String): LiveData<List<Book>>
     
+    @Query("SELECT * FROM books WHERE (title LIKE '%' || :query || '%' OR author LIKE '%' || :query || '%') AND isCompleted = :isCompleted ORDER BY lastOpened DESC")
+    fun searchBooksWithFilter(query: String, isCompleted: Boolean): LiveData<List<Book>>
+    
     @Query("SELECT * FROM books WHERE isCompleted = :isCompleted ORDER BY lastOpened DESC")
     fun getBooksByCompletionStatus(isCompleted: Boolean): LiveData<List<Book>>
+    
+    @Query("SELECT * FROM books WHERE isCompleted = 1 ORDER BY title ASC")
+    fun getCompletedBooksSortedByTitle(): LiveData<List<Book>>
+    
+    @Query("SELECT * FROM books WHERE isCompleted = 1 ORDER BY author ASC")
+    fun getCompletedBooksSortedByAuthor(): LiveData<List<Book>>
+    
+    @Query("SELECT * FROM books WHERE isCompleted = 0 ORDER BY title ASC")
+    fun getNotCompletedBooksSortedByTitle(): LiveData<List<Book>>
+    
+    @Query("SELECT * FROM books WHERE isCompleted = 0 ORDER BY author ASC")
+    fun getNotCompletedBooksSortedByAuthor(): LiveData<List<Book>>
     
     @Query("SELECT * FROM books WHERE id = :bookId")
     suspend fun getBookById(bookId: Long): Book?

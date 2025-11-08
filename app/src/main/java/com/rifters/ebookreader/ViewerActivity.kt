@@ -1,10 +1,12 @@
 package com.rifters.ebookreader
 
 import android.graphics.Bitmap
+import android.graphics.Typeface
 import android.graphics.pdf.PdfRenderer
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.speech.tts.TextToSpeech
+import android.util.TypedValue
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -14,6 +16,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.rifters.ebookreader.databinding.ActivityViewerBinding
+import com.rifters.ebookreader.model.ReadingPreferences
+import com.rifters.ebookreader.util.PreferencesManager
 import com.rifters.ebookreader.viewmodel.BookViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -26,6 +30,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     
     private lateinit var binding: ActivityViewerBinding
     private lateinit var bookViewModel: BookViewModel
+    private lateinit var preferencesManager: PreferencesManager
     private var currentBook: Book? = null
     private var currentPage: Int = 0
     private var currentProgressPercent: Float = 0f
@@ -47,6 +52,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         setContentView(binding.root)
         
         bookViewModel = ViewModelProvider(this)[BookViewModel::class.java]
+        preferencesManager = PreferencesManager(this)
         
         setupToolbar()
         setupBottomBar()
@@ -90,6 +96,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         return when (item.itemId) {
             R.id.action_tts_play -> {
                 toggleTTS()
+                true
+            }
+            R.id.action_customize_reading -> {
+                showReadingSettings()
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -244,6 +254,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     binding.pdfImageView.setImageBitmap(null)
                     
                     renderPdfPage(currentPage)
+                    
+                    // Apply theme background
+                    val preferences = preferencesManager.getReadingPreferences()
+                    binding.contentContainer.setBackgroundColor(preferences.theme.backgroundColor)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -357,6 +371,14 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             useWideViewPort = true
                         }
                         
+                        webView.webViewClient = object : android.webkit.WebViewClient() {
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                super.onPageFinished(view, url)
+                                val preferences = preferencesManager.getReadingPreferences()
+                                applyWebViewStyles(preferences)
+                            }
+                        }
+                        
                         webView.loadDataWithBaseURL(null, contentHtml, "text/html", "UTF-8", null)
                         currentTextContent = contentHtml // Store for TTS
                     }
@@ -405,6 +427,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 textView.text = content
                 currentTextContent = content // Store for TTS
             }
+            
+            // Apply reading preferences
+            val preferences = preferencesManager.getReadingPreferences()
+            applyReadingPreferences(preferences)
         }
     }
     
@@ -488,6 +514,75 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         } ?: run {
             Toast.makeText(this, "No book loaded", Toast.LENGTH_SHORT).show()
         }
+    }
+    
+    private fun showReadingSettings() {
+        val bottomSheet = ReadingSettingsBottomSheet.newInstance()
+        bottomSheet.setOnSettingsAppliedListener { preferences ->
+            applyReadingPreferences(preferences)
+        }
+        bottomSheet.show(supportFragmentManager, ReadingSettingsBottomSheet.TAG)
+    }
+    
+    private fun applyReadingPreferences(preferences: ReadingPreferences) {
+        // Apply theme colors to container
+        binding.contentContainer.setBackgroundColor(preferences.theme.backgroundColor)
+        
+        // Apply to TextView (for TXT files)
+        if (binding.textView.visibility == View.VISIBLE) {
+            binding.textView.apply {
+                setTextColor(preferences.theme.textColor)
+                setLineSpacing(0f, preferences.lineSpacing)
+                typeface = Typeface.create(preferences.fontFamily, Typeface.NORMAL)
+                setPadding(
+                    preferences.marginHorizontal,
+                    preferences.marginVertical,
+                    preferences.marginHorizontal,
+                    preferences.marginVertical
+                )
+            }
+        }
+        
+        // Apply to WebView (for EPUB files)
+        if (binding.webView.visibility == View.VISIBLE) {
+            applyWebViewStyles(preferences)
+        }
+        
+        // Apply to ScrollView container
+        binding.scrollView.setPadding(0, 0, 0, 0)
+    }
+    
+    private fun applyWebViewStyles(preferences: ReadingPreferences) {
+        val backgroundColor = String.format("#%06X", 0xFFFFFF and preferences.theme.backgroundColor)
+        val textColor = String.format("#%06X", 0xFFFFFF and preferences.theme.textColor)
+        
+        val css = """
+            <style>
+                body {
+                    font-family: ${preferences.fontFamily};
+                    line-height: ${preferences.lineSpacing};
+                    color: $textColor !important;
+                    background-color: $backgroundColor !important;
+                    padding: ${preferences.marginVertical}px ${preferences.marginHorizontal}px;
+                    margin: 0;
+                }
+                * {
+                    color: $textColor !important;
+                    background-color: transparent !important;
+                }
+            </style>
+        """.trimIndent()
+        
+        binding.webView.evaluateJavascript(
+            """
+            (function() {
+                var style = document.createElement('style');
+                style.innerHTML = `$css`;
+                document.head.appendChild(style);
+            })();
+            """.trimIndent(),
+            null
+        )
     }
     
     override fun onPause() {

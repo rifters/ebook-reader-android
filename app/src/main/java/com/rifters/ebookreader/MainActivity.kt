@@ -230,6 +230,9 @@ class MainActivity : AppCompatActivity() {
                         checkedItems[index] = collectionViewModel.isBookInCollection(book.id, collection.id)
                     }
                     
+                    // Store initial state to compare later
+                    val initialState = checkedItems.copyOf()
+                    
                     withContext(Dispatchers.Main) {
                         AlertDialog.Builder(this@MainActivity)
                             .setTitle(R.string.select_collections)
@@ -237,13 +240,19 @@ class MainActivity : AppCompatActivity() {
                                 checkedItems[which] = isChecked
                             }
                             .setPositiveButton(android.R.string.ok) { _, _ ->
-                                // Add or remove book from collections based on selection
+                                // Only add or remove book when the state has actually changed
                                 collections.forEachIndexed { index, collection ->
-                                    if (checkedItems[index]) {
+                                    val wasInCollection = initialState[index]
+                                    val isNowInCollection = checkedItems[index]
+                                    
+                                    if (!wasInCollection && isNowInCollection) {
+                                        // Book was not in collection, but now should be - add it
                                         collectionViewModel.addBookToCollection(book.id, collection.id)
-                                    } else {
+                                    } else if (wasInCollection && !isNowInCollection) {
+                                        // Book was in collection, but now should not be - remove it
                                         collectionViewModel.removeBookFromCollection(book.id, collection.id)
                                     }
+                                    // If wasInCollection == isNowInCollection, no change needed
                                 }
                                 Toast.makeText(
                                     this@MainActivity,

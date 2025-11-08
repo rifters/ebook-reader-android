@@ -53,6 +53,9 @@ class BookmarksBottomSheet : BottomSheetDialogFragment() {
             },
             onDeleteClick = { bookmark ->
                 deleteBookmark(bookmark)
+            },
+            onEditClick = { bookmark ->
+                showEditNoteDialog(bookmark)
             }
         )
         
@@ -98,6 +101,36 @@ class BookmarksBottomSheet : BottomSheetDialogFragment() {
             }
             
             // Reload bookmarks after deletion
+            loadBookmarks()
+        }
+    }
+
+    private fun showEditNoteDialog(bookmark: Bookmark) {
+        val dialog = AddNoteDialogFragment.newInstance(bookmark.note)
+        dialog.setOnNoteSavedListener { note ->
+            updateBookmarkNote(bookmark, note)
+        }
+        dialog.show(childFragmentManager, AddNoteDialogFragment.TAG)
+    }
+
+    private fun updateBookmarkNote(bookmark: Bookmark, note: String?) {
+        lifecycleScope.launch {
+            val database = BookDatabase.getDatabase(requireContext())
+            val updatedBookmark = bookmark.copy(note = note)
+            
+            withContext(Dispatchers.IO) {
+                database.bookmarkDao().updateBookmark(updatedBookmark)
+            }
+            
+            withContext(Dispatchers.Main) {
+                Toast.makeText(
+                    requireContext(),
+                    R.string.note_updated,
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            
+            // Reload bookmarks after update
             loadBookmarks()
         }
     }

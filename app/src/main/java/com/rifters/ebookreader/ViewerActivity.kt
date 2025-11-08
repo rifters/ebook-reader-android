@@ -991,36 +991,41 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     
     private fun bookmarkCurrentPage() {
         currentBook?.let { book ->
-            lifecycleScope.launch {
-                try {
-                    val bookmark = com.rifters.ebookreader.model.Bookmark(
-                        bookId = book.id,
-                        page = currentPage,
-                        position = 0,
-                        timestamp = System.currentTimeMillis()
-                    )
-                    
-                    val database = com.rifters.ebookreader.database.BookDatabase.getDatabase(this@ViewerActivity)
-                    database.bookmarkDao().insertBookmark(bookmark)
-                    
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(
-                            this@ViewerActivity,
-                            getString(R.string.bookmark_added),
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(
-                            this@ViewerActivity,
-                            "Error adding bookmark: ${e.message}",
-                            Toast.LENGTH_SHORT
-                        ).show()
+            val dialog = AddNoteDialogFragment.newInstance()
+            dialog.setOnNoteSavedListener { note ->
+                lifecycleScope.launch {
+                    try {
+                        val bookmark = com.rifters.ebookreader.model.Bookmark(
+                            bookId = book.id,
+                            page = currentPage,
+                            position = 0,
+                            note = note,
+                            timestamp = System.currentTimeMillis()
+                        )
+                        
+                        val database = com.rifters.ebookreader.database.BookDatabase.getDatabase(this@ViewerActivity)
+                        database.bookmarkDao().insertBookmark(bookmark)
+                        
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                this@ViewerActivity,
+                                getString(R.string.bookmark_added),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                this@ViewerActivity,
+                                "Error adding bookmark: ${e.message}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
                     }
                 }
             }
+            dialog.show(supportFragmentManager, AddNoteDialogFragment.TAG)
         } ?: run {
             Toast.makeText(this, "No book loaded", Toast.LENGTH_SHORT).show()
         }

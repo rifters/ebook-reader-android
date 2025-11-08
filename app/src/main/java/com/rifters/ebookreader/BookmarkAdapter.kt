@@ -14,7 +14,8 @@ import java.util.concurrent.TimeUnit
 
 class BookmarkAdapter(
     private val onBookmarkClick: (Bookmark) -> Unit,
-    private val onDeleteClick: (Bookmark) -> Unit
+    private val onDeleteClick: (Bookmark) -> Unit,
+    private val onEditClick: (Bookmark) -> Unit
 ) : ListAdapter<Bookmark, BookmarkAdapter.BookmarkViewHolder>(BookmarkDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BookmarkViewHolder {
@@ -49,6 +50,10 @@ class BookmarkAdapter(
                 
                 root.setOnClickListener {
                     onBookmarkClick(bookmark)
+                }
+                
+                btnEditBookmark.setOnClickListener {
+                    onEditClick(bookmark)
                 }
                 
                 btnDeleteBookmark.setOnClickListener {

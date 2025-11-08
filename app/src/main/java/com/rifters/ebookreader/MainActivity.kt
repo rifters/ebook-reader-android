@@ -77,6 +77,11 @@ class MainActivity : AppCompatActivity() {
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_download_network -> {
+                val intent = Intent(this, NetworkBookActivity::class.java)
+                startActivity(intent)
+                true
+            }
             R.id.action_settings -> {
                 true
             }

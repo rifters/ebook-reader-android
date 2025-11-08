@@ -90,22 +90,29 @@ class MainActivity : AppCompatActivity() {
         // Observe sync status
         syncViewModel.syncStatus.observe(this) { status ->
             when (status) {
-                "syncing" -> {
+                is SyncViewModel.SyncStatus.Idle -> {
+                    syncMenuItem?.isEnabled = true
+                }
+                is SyncViewModel.SyncStatus.InProgress -> {
                     syncMenuItem?.isEnabled = false
-                    Toast.makeText(this, getString(R.string.syncing), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, status.message, Toast.LENGTH_SHORT).show()
                 }
-                "success" -> {
+                is SyncViewModel.SyncStatus.Success -> {
                     syncMenuItem?.isEnabled = true
-                    Toast.makeText(this, getString(R.string.sync_complete), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, status.message, Toast.LENGTH_SHORT).show()
                 }
-                "error" -> {
+                is SyncViewModel.SyncStatus.PartialSuccess -> {
                     syncMenuItem?.isEnabled = true
-                    Toast.makeText(this, getString(R.string.sync_failed), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, status.message, Toast.LENGTH_SHORT).show()
+                }
+                is SyncViewModel.SyncStatus.Error -> {
+                    syncMenuItem?.isEnabled = true
+                    Toast.makeText(this, status.message, Toast.LENGTH_LONG).show()
                 }
             }
         }
         
-        syncViewModel.pendingCount.observe(this) { count ->
+        syncViewModel.pendingSyncCount.observe(this) { count ->
             if (count > 0) {
                 syncMenuItem?.title = "${getString(R.string.sync)} ($count)"
             } else {
@@ -338,7 +345,7 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             R.id.action_sync -> {
-                syncViewModel.syncData()
+                syncViewModel.fullSync()
                 true
             }
             R.id.action_collections -> {

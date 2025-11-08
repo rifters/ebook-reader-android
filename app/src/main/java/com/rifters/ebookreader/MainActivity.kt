@@ -115,6 +115,9 @@ class MainActivity : AppCompatActivity() {
                 val mimeType = when {
                     fileName.endsWith(".pdf", ignoreCase = true) -> "application/pdf"
                     fileName.endsWith(".epub", ignoreCase = true) -> "application/epub+zip"
+                    fileName.endsWith(".mobi", ignoreCase = true) -> "application/x-mobipocket-ebook"
+                    fileName.endsWith(".cbz", ignoreCase = true) -> "application/vnd.comicbook+zip"
+                    fileName.endsWith(".cbr", ignoreCase = true) -> "application/vnd.comicbook-rar"
                     fileName.endsWith(".txt", ignoreCase = true) -> "text/plain"
                     else -> contentResolver.getType(uri) ?: "application/octet-stream"
                 }

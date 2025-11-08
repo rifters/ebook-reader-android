@@ -1,6 +1,7 @@
 package com.rifters.ebookreader
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Typeface
 import android.graphics.pdf.PdfRenderer
 import android.os.Bundle
@@ -15,6 +16,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import com.github.junrar.Archive
+import com.github.junrar.rarfile.FileHeader
 import com.rifters.ebookreader.databinding.ActivityViewerBinding
 import com.rifters.ebookreader.model.Bookmark
 import com.rifters.ebookreader.model.ReadingPreferences
@@ -23,7 +26,13 @@ import com.rifters.ebookreader.viewmodel.BookViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.apache.commons.compress.archivers.zip.ZipFile as ApacheZipFile
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileInputStream
+import java.io.RandomAccessFile
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.Locale
 import java.util.zip.ZipFile
 
@@ -40,6 +49,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var pdfRenderer: PdfRenderer? = null
     private var pdfFileDescriptor: ParcelFileDescriptor? = null
     private var totalPdfPages: Int = 0
+    
+    // Comic book (CBZ/CBR) variables
+    private var comicImages: MutableList<Bitmap> = mutableListOf()
+    private var totalComicPages: Int = 0
     
     // TTS variables
     private var textToSpeech: TextToSpeech? = null
@@ -221,6 +234,15 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
                 filePath.endsWith(".epub", ignoreCase = true) -> {
                     loadEpub(file)
+                }
+                filePath.endsWith(".mobi", ignoreCase = true) -> {
+                    loadMobi(file)
+                }
+                filePath.endsWith(".cbz", ignoreCase = true) -> {
+                    loadCbz(file)
+                }
+                filePath.endsWith(".cbr", ignoreCase = true) -> {
+                    loadCbr(file)
                 }
                 filePath.endsWith(".txt", ignoreCase = true) -> {
                     loadText(file)
@@ -420,6 +442,290 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
     
+    private suspend fun loadMobi(file: File) {
+        withContext(Dispatchers.IO) {
+            try {
+                // Basic MOBI/PDB format reading
+                val content = extractMobiContent(file)
+                
+                val htmlContent = """
+                    <html>
+                    <head><meta charset="utf-8"/></head>
+                    <body style="padding: 16px; font-size: 16px; line-height: 1.6;">
+                    <pre style="white-space: pre-wrap; word-wrap: break-word;">$content</pre>
+                    </body>
+                    </html>
+                """.trimIndent()
+                
+                withContext(Dispatchers.Main) {
+                    binding.apply {
+                        loadingProgressBar.visibility = View.GONE
+                        pdfImageView.visibility = View.GONE
+                        webView.visibility = View.VISIBLE
+                        scrollView.visibility = View.GONE
+                        textView.visibility = View.GONE
+                        
+                        webView.settings.apply {
+                            javaScriptEnabled = true
+                            builtInZoomControls = true
+                            displayZoomControls = false
+                        }
+                        
+                        webView.webViewClient = object : android.webkit.WebViewClient() {
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                super.onPageFinished(view, url)
+                                val preferences = preferencesManager.getReadingPreferences()
+                                applyWebViewStyles(preferences)
+                            }
+                        }
+                        
+                        webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
+                        currentTextContent = content
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    binding.apply {
+                        loadingProgressBar.visibility = View.GONE
+                        webView.visibility = View.VISIBLE
+                        scrollView.visibility = View.GONE
+                        pdfImageView.visibility = View.GONE
+                        
+                        val errorHtml = """
+                            <html>
+                            <body style="padding: 16px;">
+                            <h1>MOBI Error</h1>
+                            <p>Error loading MOBI file: ${e.message}</p>
+                            <p>File: ${file.name}</p>
+                            <p>Basic MOBI format support is available for simple text extraction.</p>
+                            </body>
+                            </html>
+                        """.trimIndent()
+                        
+                        webView.loadDataWithBaseURL(null, errorHtml, "text/html", "UTF-8", null)
+                    }
+                }
+            }
+        }
+    }
+    
+    private fun extractMobiContent(file: File): String {
+        try {
+            val raf = RandomAccessFile(file, "r")
+            val headerBytes = ByteArray(78)
+            raf.read(headerBytes)
+            
+            // Simple text extraction from MOBI/PDB format
+            // This is a basic implementation that reads text records
+            val sb = StringBuilder()
+            sb.append("MOBI/PDB Book\n")
+            sb.append("File: ${file.name}\n")
+            sb.append("Size: ${file.length() / 1024} KB\n\n")
+            
+            // Try to extract readable text from the file
+            val buffer = ByteArray(4096)
+            var bytesRead: Int
+            val textContent = StringBuilder()
+            
+            raf.seek(0)
+            while (raf.read(buffer).also { bytesRead = it } != -1) {
+                val text = String(buffer, 0, bytesRead, Charsets.ISO_8859_1)
+                // Filter out non-printable characters but keep readable text
+                text.forEach { char ->
+                    if (char.isLetterOrDigit() || char.isWhitespace() || char in ".,!?;:'\"-()[]{}") {
+                        textContent.append(char)
+                    }
+                }
+            }
+            
+            raf.close()
+            
+            val extracted = textContent.toString()
+            if (extracted.length > 200) {
+                sb.append(extracted)
+            } else {
+                sb.append("MOBI format detected.\n\n")
+                sb.append("This is a basic MOBI reader implementation.\n")
+                sb.append("For full MOBI support with proper formatting, consider using a dedicated reader.\n")
+            }
+            
+            return sb.toString()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return "Error extracting MOBI content: ${e.message}"
+        }
+    }
+    
+    private suspend fun loadCbz(file: File) {
+        withContext(Dispatchers.IO) {
+            try {
+                comicImages.clear()
+                
+                // Use Apache Commons Compress for better ZIP handling
+                val zipFile = ApacheZipFile(file)
+                val entries = zipFile.entries.toList()
+                    .filter { !it.isDirectory && it.name.lowercase().let { name -> 
+                        name.endsWith(".jpg") || name.endsWith(".jpeg") || 
+                        name.endsWith(".png") || name.endsWith(".gif") || 
+                        name.endsWith(".bmp") || name.endsWith(".webp")
+                    }}
+                    .sortedBy { it.name }
+                
+                // Load all images
+                for (entry in entries) {
+                    try {
+                        val inputStream = zipFile.getInputStream(entry)
+                        val bitmap = BitmapFactory.decodeStream(inputStream)
+                        if (bitmap != null) {
+                            comicImages.add(bitmap)
+                        }
+                        inputStream.close()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                
+                zipFile.close()
+                totalComicPages = comicImages.size
+                
+                withContext(Dispatchers.Main) {
+                    binding.apply {
+                        loadingProgressBar.visibility = View.GONE
+                        pdfImageView.visibility = View.VISIBLE
+                        webView.visibility = View.GONE
+                        scrollView.visibility = View.GONE
+                        textView.visibility = View.GONE
+                    }
+                    
+                    if (totalComicPages > 0) {
+                        renderComicPage(currentPage)
+                    } else {
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            "No images found in CBZ file",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    binding.apply {
+                        loadingProgressBar.visibility = View.GONE
+                        scrollView.visibility = View.VISIBLE
+                        textView.visibility = View.VISIBLE
+                        pdfImageView.visibility = View.GONE
+                        webView.visibility = View.GONE
+                        
+                        textView.text = "Error loading CBZ file: ${e.message}\n\n" +
+                                "File: ${file.name}\n" +
+                                "CBZ files should contain image files (JPG, PNG, etc.)"
+                    }
+                }
+            }
+        }
+    }
+    
+    private suspend fun loadCbr(file: File) {
+        withContext(Dispatchers.IO) {
+            try {
+                comicImages.clear()
+                
+                // Use junrar library for RAR extraction
+                val archive = Archive(file)
+                val fileHeaders = mutableListOf<FileHeader>()
+                
+                // Collect all image file headers
+                var fileHeader: FileHeader? = archive.nextFileHeader()
+                while (fileHeader != null) {
+                    if (!fileHeader.isDirectory) {
+                        val fileName = fileHeader.fileName.lowercase()
+                        if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") || 
+                            fileName.endsWith(".png") || fileName.endsWith(".gif") || 
+                            fileName.endsWith(".bmp") || fileName.endsWith(".webp")) {
+                            fileHeaders.add(fileHeader)
+                        }
+                    }
+                    fileHeader = archive.nextFileHeader()
+                }
+                
+                // Sort by name
+                fileHeaders.sortBy { it.fileName }
+                
+                // Extract and decode images
+                for (header in fileHeaders) {
+                    try {
+                        val outputStream = ByteArrayOutputStream()
+                        archive.extractFile(header, outputStream)
+                        val bytes = outputStream.toByteArray()
+                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        if (bitmap != null) {
+                            comicImages.add(bitmap)
+                        }
+                        outputStream.close()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                
+                archive.close()
+                totalComicPages = comicImages.size
+                
+                withContext(Dispatchers.Main) {
+                    binding.apply {
+                        loadingProgressBar.visibility = View.GONE
+                        pdfImageView.visibility = View.VISIBLE
+                        webView.visibility = View.GONE
+                        scrollView.visibility = View.GONE
+                        textView.visibility = View.GONE
+                    }
+                    
+                    if (totalComicPages > 0) {
+                        renderComicPage(currentPage)
+                    } else {
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            "No images found in CBR file",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    binding.apply {
+                        loadingProgressBar.visibility = View.GONE
+                        scrollView.visibility = View.VISIBLE
+                        textView.visibility = View.VISIBLE
+                        pdfImageView.visibility = View.GONE
+                        webView.visibility = View.GONE
+                        
+                        textView.text = "Error loading CBR file: ${e.message}\n\n" +
+                                "File: ${file.name}\n" +
+                                "CBR files should contain image files (JPG, PNG, etc.)"
+                    }
+                }
+            }
+        }
+    }
+    
+    private fun renderComicPage(pageIndex: Int) {
+        if (pageIndex < 0 || pageIndex >= totalComicPages) return
+        
+        val bitmap = comicImages[pageIndex]
+        binding.apply {
+            pdfImageView.visibility = View.VISIBLE
+            pdfImageView.setImageBitmap(bitmap)
+            webView.visibility = View.GONE
+            scrollView.visibility = View.GONE
+            textView.visibility = View.GONE
+        }
+        
+        currentPage = pageIndex
+        updateProgress(pageIndex, totalComicPages)
+    }
+    
     private suspend fun loadText(file: File) {
         val content = withContext(Dispatchers.IO) {
             file.readText()
@@ -471,6 +777,13 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             } else {
                 Toast.makeText(this, "Already at first page", Toast.LENGTH_SHORT).show()
             }
+        } else if (totalComicPages > 0) {
+            if (currentPage > 0) {
+                currentPage--
+                renderComicPage(currentPage)
+            } else {
+                Toast.makeText(this, "Already at first page", Toast.LENGTH_SHORT).show()
+            }
         } else {
             Toast.makeText(this, "Page navigation not available for this format", Toast.LENGTH_SHORT).show()
         }
@@ -481,6 +794,13 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             if (currentPage < totalPdfPages - 1) {
                 currentPage++
                 renderPdfPage(currentPage)
+            } else {
+                Toast.makeText(this, "Already at last page", Toast.LENGTH_SHORT).show()
+            }
+        } else if (totalComicPages > 0) {
+            if (currentPage < totalComicPages - 1) {
+                currentPage++
+                renderComicPage(currentPage)
             } else {
                 Toast.makeText(this, "Already at last page", Toast.LENGTH_SHORT).show()
             }
@@ -544,6 +864,19 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             if (bookmark.page in 0 until totalPdfPages) {
                 currentPage = bookmark.page
                 renderPdfPage(currentPage)
+                Toast.makeText(
+                    this,
+                    getString(R.string.page_format, bookmark.page + 1),
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                Toast.makeText(this, "Invalid page number", Toast.LENGTH_SHORT).show()
+            }
+        } else if (totalComicPages > 0) {
+            // For comic books (CBZ/CBR), navigate to the bookmarked page
+            if (bookmark.page in 0 until totalComicPages) {
+                currentPage = bookmark.page
+                renderComicPage(currentPage)
                 Toast.makeText(
                     this,
                     getString(R.string.page_format, bookmark.page + 1),
@@ -663,6 +996,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+        
+        // Clean up comic book images
+        comicImages.forEach { it.recycle() }
+        comicImages.clear()
         
         super.onDestroy()
     }

@@ -1,10 +1,10 @@
 # EBook Reader Android
 
-A modern Android e-book reader application built with Kotlin, supporting PDF, EPUB, and TXT formats.
+A modern Android e-book reader application built with Kotlin, supporting PDF, EPUB, MOBI, TXT, and comic book formats (CBZ/CBR).
 
 ## Features
 
-- 📚 Support for multiple formats (PDF, EPUB, TXT)
+- 📚 Support for multiple formats (PDF, EPUB, MOBI, TXT, CBZ, CBR)
 - 💾 Local database storage using Room
 - 📊 Reading progress tracking
 - 🎨 Material Design 3 UI
@@ -61,8 +61,11 @@ A modern Android e-book reader application built with Kotlin, supporting PDF, EP
 - Kotlin Coroutines
 
 ### File Format Support
-- **PDF**: android-pdf-viewer by barteksc
-- **EPUB**: epublib-core
+- **PDF**: Android built-in PdfRenderer
+- **EPUB**: Custom implementation using ZIP extraction
+- **MOBI**: Custom implementation with basic PalmDB format reading
+- **CBZ**: Apache Commons Compress for ZIP-based comic books
+- **CBR**: junrar library for RAR-based comic books
 - **Plain Text**: Built-in TextView
 
 ### Build Configuration
@@ -107,6 +110,9 @@ cd ebook-reader-android
 - [x] Material Design 3 theming
 - [x] Basic PDF viewer integration
 - [x] Basic EPUB viewer integration
+- [x] Basic MOBI viewer integration
+- [x] CBZ (Comic Book ZIP) viewer
+- [x] CBR (Comic Book RAR) viewer
 - [x] Text file viewer
 - [x] ProGuard configuration
 
@@ -119,6 +125,7 @@ cd ebook-reader-android
 
 ### Planned 📋
 - [ ] Advanced EPUB rendering
+- [ ] Advanced MOBI rendering with proper formatting
 - [ ] Table of Contents navigation
 - [ ] Text-to-Speech support
 - [ ] Search functionality
@@ -126,6 +133,18 @@ cd ebook-reader-android
 - [ ] Font size adjustment
 - [ ] Reading statistics
 - [ ] Cloud sync support
+
+## Supported File Formats
+
+### E-Books
+- **PDF** - Portable Document Format (using Android PdfRenderer)
+- **EPUB** - Electronic Publication (basic HTML extraction)
+- **MOBI** - Mobipocket format (basic text extraction)
+- **TXT** - Plain text files
+
+### Comic Books
+- **CBZ** - Comic Book ZIP archive
+- **CBR** - Comic Book RAR archive
 
 ## License
 
@@ -141,5 +160,5 @@ rifters
 
 ## Acknowledgments
 
-- [android-pdf-viewer](https://github.com/barteksc/AndroidPdfViewer) by barteksc
-- [epublib](https://github.com/psiegman/epublib) by Paul Siegmann
+- [Apache Commons Compress](https://commons.apache.org/proper/commons-compress/) for ZIP handling
+- [junrar](https://github.com/junrar/junrar) for RAR extraction

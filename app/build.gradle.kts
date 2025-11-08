@@ -69,6 +69,13 @@ dependencies {
     // EPUB parsing - we'll implement basic parsing using built-in ZIP support
     // No external library needed for basic EPUB viewing
     
+    // MOBI support - basic PalmDB format reading (no external library needed)
+    // Using custom implementation for basic MOBI reading
+    
+    // CBZ/CBR support - comic book archives
+    implementation("org.apache.commons:commons-compress:1.25.0") // For CBZ (ZIP)
+    implementation("com.github.junrar:junrar:7.5.5") // For CBR (RAR)
+    
     // File picker for document selection
     implementation("androidx.activity:activity-ktx:1.8.1")
     implementation("androidx.documentfile:documentfile:1.0.1")

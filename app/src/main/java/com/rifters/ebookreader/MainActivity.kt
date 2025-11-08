@@ -7,12 +7,14 @@ import android.view.Menu
 import android.view.MenuItem
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.rifters.ebookreader.databinding.ActivityMainBinding
 import com.rifters.ebookreader.viewmodel.BookViewModel
+import com.rifters.ebookreader.viewmodel.CollectionViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -23,6 +25,7 @@ class MainActivity : AppCompatActivity() {
     
     private lateinit var binding: ActivityMainBinding
     private lateinit var bookViewModel: BookViewModel
+    private lateinit var collectionViewModel: CollectionViewModel
     private lateinit var bookAdapter: BookAdapter
     
     private val filePickerLauncher = registerForActivityResult(
@@ -48,9 +51,14 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun setupRecyclerView() {
-        bookAdapter = BookAdapter { book ->
-            openBook(book)
-        }
+        bookAdapter = BookAdapter(
+            onBookClick = { book ->
+                openBook(book)
+            },
+            onBookLongClick = { book ->
+                showAddToCollectionDialog(book)
+            }
+        )
         
         binding.recyclerView.apply {
             adapter = bookAdapter
@@ -60,6 +68,7 @@ class MainActivity : AppCompatActivity() {
     
     private fun setupViewModel() {
         bookViewModel = ViewModelProvider(this)[BookViewModel::class.java]
+        collectionViewModel = ViewModelProvider(this)[CollectionViewModel::class.java]
         
         bookViewModel.allBooks.observe(this) { books ->
             bookAdapter.submitList(books)
@@ -174,6 +183,11 @@ class MainActivity : AppCompatActivity() {
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_collections -> {
+                val intent = Intent(this, CollectionsActivity::class.java)
+                startActivity(intent)
+                true
+            }
             R.id.action_download_network -> {
                 val intent = Intent(this, NetworkBookActivity::class.java)
                 startActivity(intent)
@@ -190,6 +204,58 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             else -> super.onOptionsItemSelected(item)
+        }
+    }
+    
+    private fun showAddToCollectionDialog(book: Book) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            val collections = collectionViewModel.allCollections.value ?: emptyList()
+            
+            withContext(Dispatchers.Main) {
+                if (collections.isEmpty()) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "No collections yet. Create one first from the Collections menu.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@withContext
+                }
+                
+                val collectionNames = collections.map { it.name }.toTypedArray()
+                val checkedItems = BooleanArray(collections.size) { false }
+                
+                // Check which collections already contain this book
+                lifecycleScope.launch(Dispatchers.IO) {
+                    collections.forEachIndexed { index, collection ->
+                        checkedItems[index] = collectionViewModel.isBookInCollection(book.id, collection.id)
+                    }
+                    
+                    withContext(Dispatchers.Main) {
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle(R.string.select_collections)
+                            .setMultiChoiceItems(collectionNames, checkedItems) { _, which, isChecked ->
+                                checkedItems[which] = isChecked
+                            }
+                            .setPositiveButton(android.R.string.ok) { _, _ ->
+                                // Add or remove book from collections based on selection
+                                collections.forEachIndexed { index, collection ->
+                                    if (checkedItems[index]) {
+                                        collectionViewModel.addBookToCollection(book.id, collection.id)
+                                    } else {
+                                        collectionViewModel.removeBookFromCollection(book.id, collection.id)
+                                    }
+                                }
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    "Collections updated",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show()
+                    }
+                }
+            }
         }
     }
 }

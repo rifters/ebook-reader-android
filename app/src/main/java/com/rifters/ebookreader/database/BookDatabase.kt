@@ -6,12 +6,19 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.rifters.ebookreader.Book
 import com.rifters.ebookreader.model.Bookmark
+import com.rifters.ebookreader.model.BookCollectionCrossRef
+import com.rifters.ebookreader.model.Collection
 
-@Database(entities = [Book::class, Bookmark::class], version = 2, exportSchema = false)
+@Database(
+    entities = [Book::class, Bookmark::class, Collection::class, BookCollectionCrossRef::class], 
+    version = 3, 
+    exportSchema = false
+)
 abstract class BookDatabase : RoomDatabase() {
     
     abstract fun bookDao(): BookDao
     abstract fun bookmarkDao(): BookmarkDao
+    abstract fun collectionDao(): CollectionDao
     
     companion object {
         @Volatile

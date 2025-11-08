@@ -5,20 +5,20 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
-import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SearchView
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.google.android.material.snackbar.Snackbar
 import com.rifters.ebookreader.databinding.ActivityMainBinding
-import com.rifters.ebookreader.util.PreferencesManager
 import com.rifters.ebookreader.viewmodel.BookViewModel
 import com.rifters.ebookreader.viewmodel.CollectionViewModel
 import com.rifters.ebookreader.viewmodel.SyncViewModel
+import com.rifters.ebookreader.viewmodel.SortOrder
+import com.rifters.ebookreader.viewmodel.FilterOption
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -32,7 +32,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var collectionViewModel: CollectionViewModel
     private lateinit var syncViewModel: SyncViewModel
     private lateinit var bookAdapter: BookAdapter
-    private lateinit var prefsManager: PreferencesManager
+    private var searchView: SearchView? = null
     private var syncMenuItem: MenuItem? = null
     
     private val filePickerLauncher = registerForActivityResult(
@@ -46,13 +46,11 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        prefsManager = PreferencesManager(this)
-        
         setupToolbar()
         setupRecyclerView()
         setupViewModel()
-        setupFab()
         setupSyncObservers()
+        setupFab()
     }
     
     private fun setupToolbar() {
@@ -67,9 +65,6 @@ class MainActivity : AppCompatActivity() {
             },
             onBookLongClick = { book ->
                 showAddToCollectionDialog(book)
-            },
-            onBookMenuClick = { book ->
-                showBookMenu(book)
             }
         )
         
@@ -93,30 +88,26 @@ class MainActivity : AppCompatActivity() {
         // Observe sync status
         syncViewModel.syncStatus.observe(this) { status ->
             when (status) {
-                is SyncViewModel.SyncStatus.InProgress -> {
-                    showSyncSnackbar(status.message)
+                "syncing" -> {
+                    syncMenuItem?.isEnabled = false
+                    Toast.makeText(this, getString(R.string.syncing), Toast.LENGTH_SHORT).show()
                 }
-                is SyncViewModel.SyncStatus.Success -> {
-                    showSyncSnackbar(status.message)
+                "success" -> {
+                    syncMenuItem?.isEnabled = true
+                    Toast.makeText(this, getString(R.string.sync_complete), Toast.LENGTH_SHORT).show()
                 }
-                is SyncViewModel.SyncStatus.Error -> {
-                    showSyncSnackbar(status.message)
+                "error" -> {
+                    syncMenuItem?.isEnabled = true
+                    Toast.makeText(this, getString(R.string.sync_failed), Toast.LENGTH_SHORT).show()
                 }
-                is SyncViewModel.SyncStatus.PartialSuccess -> {
-                    showSyncSnackbar(status.message)
-                }
-                else -> {}
             }
         }
         
-        // Observe pending sync count to update menu icon
-        syncViewModel.pendingSyncCount.observe(this) { count ->
-            syncMenuItem?.let { menuItem ->
-                if (count > 0 && prefsManager.isSyncEnabled()) {
-                    menuItem.title = getString(R.string.pending_sync, count)
-                } else {
-                    menuItem.title = getString(R.string.sync)
-                }
+        syncViewModel.pendingCount.observe(this) { count ->
+            if (count > 0) {
+                syncMenuItem?.title = "${getString(R.string.sync)} ($count)"
+            } else {
+                syncMenuItem?.title = getString(R.string.sync)
             }
         }
     }
@@ -224,18 +215,46 @@ class MainActivity : AppCompatActivity() {
     
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
-        syncMenuItem = menu.findItem(R.id.action_sync)
         
-        // Update sync menu visibility based on sync enabled status
-        syncMenuItem?.isVisible = prefsManager.isSyncEnabled()
+        // Setup SearchView
+        val searchItem = menu.findItem(R.id.action_search)
+        searchView = searchItem.actionView as? SearchView
+        searchView?.apply {
+            queryHint = getString(R.string.search_hint)
+            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+                override fun onQueryTextSubmit(query: String?): Boolean {
+                    return false
+                }
+                
+                override fun onQueryTextChange(newText: String?): Boolean {
+                    bookViewModel.setSearchQuery(newText ?: "")
+                    return true
+                }
+            })
+        }
+        
+        // Store sync menu item reference
+        syncMenuItem = menu.findItem(R.id.action_sync)
         
         return true
     }
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_search -> {
+                // Handled by SearchView
+                true
+            }
+            R.id.action_sort -> {
+                showSortDialog()
+                true
+            }
+            R.id.action_filter -> {
+                showFilterDialog()
+                true
+            }
             R.id.action_sync -> {
-                handleSyncAction()
+                syncViewModel.syncData()
                 true
             }
             R.id.action_collections -> {
@@ -262,24 +281,62 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    private fun handleSyncAction() {
-        if (!prefsManager.isSyncEnabled()) {
-            showSyncSnackbar(getString(R.string.sync_disabled))
-            return
+    private fun showSortDialog() {
+        val currentSort = bookViewModel.getSortOrder()
+        val sortOptions = arrayOf(
+            getString(R.string.sort_by_recently_read),
+            getString(R.string.sort_by_title),
+            getString(R.string.sort_by_author)
+        )
+        val checkedItem = when (currentSort) {
+            SortOrder.RECENTLY_READ -> 0
+            SortOrder.TITLE -> 1
+            SortOrder.AUTHOR -> 2
         }
         
-        // Perform full sync
-        syncViewModel.fullSync()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.sort_by)
+            .setSingleChoiceItems(sortOptions, checkedItem) { dialog, which ->
+                val sortOrder = when (which) {
+                    0 -> SortOrder.RECENTLY_READ
+                    1 -> SortOrder.TITLE
+                    2 -> SortOrder.AUTHOR
+                    else -> SortOrder.RECENTLY_READ
+                }
+                bookViewModel.setSortOrder(sortOrder)
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
     
-    private fun showSyncSnackbar(message: String) {
-        Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT).show()
-    }
-    
-    override fun onResume() {
-        super.onResume()
-        // Update sync menu visibility when returning from settings
-        invalidateOptionsMenu()
+    private fun showFilterDialog() {
+        val currentFilter = bookViewModel.getFilterOption()
+        val filterOptions = arrayOf(
+            getString(R.string.filter_all),
+            getString(R.string.filter_completed),
+            getString(R.string.filter_not_completed)
+        )
+        val checkedItem = when (currentFilter) {
+            FilterOption.ALL -> 0
+            FilterOption.COMPLETED -> 1
+            FilterOption.NOT_COMPLETED -> 2
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle(R.string.filter_by)
+            .setSingleChoiceItems(filterOptions, checkedItem) { dialog, which ->
+                val filterOption = when (which) {
+                    0 -> FilterOption.ALL
+                    1 -> FilterOption.COMPLETED
+                    2 -> FilterOption.NOT_COMPLETED
+                    else -> FilterOption.ALL
+                }
+                bookViewModel.setFilterOption(filterOption)
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
     
     private fun showAddToCollectionDialog(book: Book) {
@@ -305,9 +362,6 @@ class MainActivity : AppCompatActivity() {
                         checkedItems[index] = collectionViewModel.isBookInCollection(book.id, collection.id)
                     }
                     
-                    // Store initial state to compare later
-                    val initialState = checkedItems.copyOf()
-                    
                     withContext(Dispatchers.Main) {
                         AlertDialog.Builder(this@MainActivity)
                             .setTitle(R.string.select_collections)
@@ -315,19 +369,13 @@ class MainActivity : AppCompatActivity() {
                                 checkedItems[which] = isChecked
                             }
                             .setPositiveButton(android.R.string.ok) { _, _ ->
-                                // Only add or remove book when the state has actually changed
+                                // Add or remove book from collections based on selection
                                 collections.forEachIndexed { index, collection ->
-                                    val wasInCollection = initialState[index]
-                                    val isNowInCollection = checkedItems[index]
-                                    
-                                    if (!wasInCollection && isNowInCollection) {
-                                        // Book was not in collection, but now should be - add it
+                                    if (checkedItems[index]) {
                                         collectionViewModel.addBookToCollection(book.id, collection.id)
-                                    } else if (wasInCollection && !isNowInCollection) {
-                                        // Book was in collection, but now should not be - remove it
+                                    } else {
                                         collectionViewModel.removeBookFromCollection(book.id, collection.id)
                                     }
-                                    // If wasInCollection == isNowInCollection, no change needed
                                 }
                                 Toast.makeText(
                                     this@MainActivity,
@@ -341,62 +389,5 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-    }
-    
-    private fun showBookMenu(book: Book) {
-        val viewHolder = binding.recyclerView.findViewHolderForAdapterPosition(
-            bookAdapter.currentList.indexOf(book)
-        ) ?: return
-        
-        val menuButton = viewHolder.itemView.findViewById<android.widget.ImageButton>(R.id.menuButton)
-        
-        PopupMenu(this, menuButton).apply {
-            inflate(R.menu.book_menu)
-            setOnMenuItemClickListener { menuItem ->
-                when (menuItem.itemId) {
-                    R.id.action_edit -> {
-                        openEditBookActivity(book)
-                        true
-                    }
-                    R.id.action_delete -> {
-                        showDeleteBookConfirmation(book)
-                        true
-                    }
-                    else -> false
-                }
-            }
-            show()
-        }
-    }
-    
-    private fun openEditBookActivity(book: Book) {
-        val intent = Intent(this, EditBookActivity::class.java).apply {
-            putExtra("book_id", book.id)
-        }
-        startActivity(intent)
-    }
-    
-    private fun showDeleteBookConfirmation(book: Book) {
-        AlertDialog.Builder(this)
-            .setTitle(R.string.delete_book)
-            .setMessage("Are you sure you want to delete \"${book.title}\"?")
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                bookViewModel.deleteBook(book)
-                // Optionally delete the file
-                val file = File(book.filePath)
-                if (file.exists()) {
-                    file.delete()
-                }
-                // Delete cover image if exists
-                book.coverImagePath?.let { coverPath ->
-                    val coverFile = File(coverPath)
-                    if (coverFile.exists()) {
-                        coverFile.delete()
-                    }
-                }
-                Toast.makeText(this, "Book deleted", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
     }
 }

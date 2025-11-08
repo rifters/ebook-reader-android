@@ -15,6 +15,21 @@ interface BookDao {
     @Query("SELECT * FROM books ORDER BY lastOpened DESC")
     fun getAllBooks(): LiveData<List<Book>>
     
+    @Query("SELECT * FROM books ORDER BY title ASC")
+    fun getBooksSortedByTitle(): LiveData<List<Book>>
+    
+    @Query("SELECT * FROM books ORDER BY author ASC")
+    fun getBooksSortedByAuthor(): LiveData<List<Book>>
+    
+    @Query("SELECT * FROM books ORDER BY lastOpened DESC")
+    fun getBooksSortedByRecentlyRead(): LiveData<List<Book>>
+    
+    @Query("SELECT * FROM books WHERE (title LIKE '%' || :query || '%' OR author LIKE '%' || :query || '%') ORDER BY lastOpened DESC")
+    fun searchBooks(query: String): LiveData<List<Book>>
+    
+    @Query("SELECT * FROM books WHERE isCompleted = :isCompleted ORDER BY lastOpened DESC")
+    fun getBooksByCompletionStatus(isCompleted: Boolean): LiveData<List<Book>>
+    
     @Query("SELECT * FROM books WHERE id = :bookId")
     suspend fun getBookById(bookId: Long): Book?
     

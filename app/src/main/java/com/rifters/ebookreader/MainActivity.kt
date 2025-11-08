@@ -9,12 +9,15 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.SearchView
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.rifters.ebookreader.databinding.ActivityMainBinding
 import com.rifters.ebookreader.viewmodel.BookViewModel
 import com.rifters.ebookreader.viewmodel.CollectionViewModel
+import com.rifters.ebookreader.viewmodel.SortOrder
+import com.rifters.ebookreader.viewmodel.FilterOption
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -27,6 +30,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var bookViewModel: BookViewModel
     private lateinit var collectionViewModel: CollectionViewModel
     private lateinit var bookAdapter: BookAdapter
+    private var searchView: SearchView? = null
     
     private val filePickerLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -178,11 +182,37 @@ class MainActivity : AppCompatActivity() {
     
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
+        
+        // Setup SearchView
+        val searchItem = menu.findItem(R.id.action_search)
+        searchView = searchItem.actionView as? SearchView
+        searchView?.apply {
+            queryHint = getString(R.string.search_hint)
+            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+                override fun onQueryTextSubmit(query: String?): Boolean {
+                    return false
+                }
+                
+                override fun onQueryTextChange(newText: String?): Boolean {
+                    bookViewModel.setSearchQuery(newText ?: "")
+                    return true
+                }
+            })
+        }
+        
         return true
     }
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_sort -> {
+                showSortDialog()
+                true
+            }
+            R.id.action_filter -> {
+                showFilterDialog()
+                true
+            }
             R.id.action_collections -> {
                 val intent = Intent(this, CollectionsActivity::class.java)
                 startActivity(intent)
@@ -205,6 +235,64 @@ class MainActivity : AppCompatActivity() {
             }
             else -> super.onOptionsItemSelected(item)
         }
+    }
+    
+    private fun showSortDialog() {
+        val currentSort = bookViewModel.getSortOrder()
+        val sortOptions = arrayOf(
+            getString(R.string.sort_by_recently_read),
+            getString(R.string.sort_by_title),
+            getString(R.string.sort_by_author)
+        )
+        val checkedItem = when (currentSort) {
+            SortOrder.RECENTLY_READ -> 0
+            SortOrder.TITLE -> 1
+            SortOrder.AUTHOR -> 2
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle(R.string.sort_by)
+            .setSingleChoiceItems(sortOptions, checkedItem) { dialog, which ->
+                val sortOrder = when (which) {
+                    0 -> SortOrder.RECENTLY_READ
+                    1 -> SortOrder.TITLE
+                    2 -> SortOrder.AUTHOR
+                    else -> SortOrder.RECENTLY_READ
+                }
+                bookViewModel.setSortOrder(sortOrder)
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+    
+    private fun showFilterDialog() {
+        val currentFilter = bookViewModel.getFilterOption()
+        val filterOptions = arrayOf(
+            getString(R.string.filter_all),
+            getString(R.string.filter_completed),
+            getString(R.string.filter_not_completed)
+        )
+        val checkedItem = when (currentFilter) {
+            FilterOption.ALL -> 0
+            FilterOption.COMPLETED -> 1
+            FilterOption.NOT_COMPLETED -> 2
+        }
+        
+        AlertDialog.Builder(this)
+            .setTitle(R.string.filter_by)
+            .setSingleChoiceItems(filterOptions, checkedItem) { dialog, which ->
+                val filterOption = when (which) {
+                    0 -> FilterOption.ALL
+                    1 -> FilterOption.COMPLETED
+                    2 -> FilterOption.NOT_COMPLETED
+                    else -> FilterOption.ALL
+                }
+                bookViewModel.setFilterOption(filterOption)
+                dialog.dismiss()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
     
     private fun showAddToCollectionDialog(book: Book) {

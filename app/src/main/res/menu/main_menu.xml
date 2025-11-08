@@ -3,16 +3,35 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/action_search"
+        android:icon="@android:drawable/ic_menu_search"
+        android:title="@string/search_books"
+        app:actionViewClass="androidx.appcompat.widget.SearchView"
+        app:showAsAction="ifRoom|collapseActionView" />
+
+    <item
+        android:id="@+id/action_sort"
+        android:icon="@android:drawable/ic_menu_sort_alphabetically"
+        android:title="@string/sort_by"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_filter"
+        android:icon="@android:drawable/ic_menu_view"
+        android:title="@string/filter_by"
+        app:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/action_collections"
         android:icon="@android:drawable/ic_menu_agenda"
         android:title="@string/collections"
-        app:showAsAction="ifRoom" />
+        app:showAsAction="never" />
 
     <item
         android:id="@+id/action_download_network"
         android:icon="@android:drawable/stat_sys_download"
         android:title="@string/download_books"
-        app:showAsAction="ifRoom" />
+        app:showAsAction="never" />
 
     <item
         android:id="@+id/action_settings"

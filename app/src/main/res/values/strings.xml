@@ -90,4 +90,17 @@
     <string name="manage_collections">Manage Collections</string>
     <string name="select_collections">Select Collections</string>
     <string name="collection_name_required">Collection name is required</string>
+    
+    <!-- Search, Sort, and Filter -->
+    <string name="search_books">Search Books</string>
+    <string name="search_hint">Search by title or author</string>
+    <string name="sort_by">Sort By</string>
+    <string name="filter_by">Filter By</string>
+    <string name="sort_by_title">Title</string>
+    <string name="sort_by_author">Author</string>
+    <string name="sort_by_recently_read">Recently Read</string>
+    <string name="filter_all">All Books</string>
+    <string name="filter_completed">Completed</string>
+    <string name="filter_not_completed">Not Completed</string>
+    <string name="clear_search">Clear Search</string>
 </resources>

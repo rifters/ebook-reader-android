@@ -5,23 +5,36 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="8dp"
-    app:cardCornerRadius="8dp"
-    app:cardElevation="4dp">
+    style="@style/Widget.App.Card"
+    android:foreground="@drawable/ripple_card"
+    android:clickable="true"
+    android:focusable="true">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="16dp">
 
-        <ImageView
-            android:id="@+id/bookCoverImageView"
-            android:layout_width="60dp"
-            android:layout_height="80dp"
-            android:contentDescription="@string/book_title"
-            android:scaleType="centerCrop"
-            android:src="@android:drawable/ic_menu_gallery"
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/bookCoverCard"
+            android:layout_width="80dp"
+            android:layout_height="100dp"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="4dp"
+            app:strokeWidth="0dp"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            app:layout_constraintTop_toTopOf="parent">
+
+            <ImageView
+                android:id="@+id/bookCoverImageView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@string/book_title"
+                android:scaleType="centerCrop"
+                android:src="@drawable/ic_book"
+                android:background="?attr/colorSurfaceVariant" />
+
+        </com.google.android.material.card.MaterialCardView>
 
         <TextView
             android:id="@+id/bookTitleTextView"
@@ -31,21 +44,22 @@
             android:layout_marginEnd="8dp"
             android:ellipsize="end"
             android:maxLines="2"
-            android:textSize="16sp"
-            android:textStyle="bold"
+            android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+            android:textColor="?attr/colorOnSurface"
             app:layout_constraintEnd_toStartOf="@id/menuButton"
-            app:layout_constraintStart_toEndOf="@id/bookCoverImageView"
+            app:layout_constraintStart_toEndOf="@id/bookCoverCard"
             app:layout_constraintTop_toTopOf="parent"
             tools:text="The Great Gatsby" />
 
         <ImageButton
             android:id="@+id/menuButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="@drawable/ripple_circular"
             android:contentDescription="@string/book_info"
-            android:padding="8dp"
-            android:src="@android:drawable/ic_menu_more"
+            android:padding="12dp"
+            android:src="@drawable/ic_menu"
+            app:tint="?attr/colorOnSurfaceVariant"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
@@ -58,23 +72,25 @@
             android:layout_marginEnd="8dp"
             android:ellipsize="end"
             android:maxLines="1"
-            android:textSize="14sp"
+            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+            android:textColor="?attr/colorOnSurfaceVariant"
             app:layout_constraintEnd_toStartOf="@id/menuButton"
-            app:layout_constraintStart_toEndOf="@id/bookCoverImageView"
+            app:layout_constraintStart_toEndOf="@id/bookCoverCard"
             app:layout_constraintTop_toBottomOf="@id/bookTitleTextView"
             tools:text="F. Scott Fitzgerald" />
 
-        <ProgressBar
+        <com.google.android.material.progressindicator.LinearProgressIndicator
             android:id="@+id/bookProgressBar"
-            style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="12dp"
             android:layout_marginEnd="8dp"
             android:max="100"
+            app:trackThickness="6dp"
+            app:trackCornerRadius="3dp"
             app:layout_constraintEnd_toStartOf="@id/menuButton"
-            app:layout_constraintStart_toEndOf="@id/bookCoverImageView"
+            app:layout_constraintStart_toEndOf="@id/bookCoverCard"
             app:layout_constraintTop_toBottomOf="@id/bookAuthorTextView"
             tools:progress="45" />
 
@@ -83,11 +99,12 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="6dp"
             android:layout_marginEnd="8dp"
-            android:textSize="12sp"
+            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant"
             app:layout_constraintEnd_toStartOf="@id/menuButton"
-            app:layout_constraintStart_toEndOf="@id/bookCoverImageView"
+            app:layout_constraintStart_toEndOf="@id/bookCoverCard"
             app:layout_constraintTop_toBottomOf="@id/bookProgressBar"
             tools:text="45% complete • Last read: 2 days ago" />
 

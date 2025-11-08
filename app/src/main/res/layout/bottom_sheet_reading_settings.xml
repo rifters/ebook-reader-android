@@ -4,14 +4,16 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="16dp">
+    android:padding="24dp"
+    android:background="?attr/colorSurface">
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/reading_settings"
-        android:textAppearance="@style/TextAppearance.Material3.HeadlineSmall"
-        android:layout_marginBottom="16dp" />
+        android:textAppearance="@style/TextAppearance.Material3.HeadlineMedium"
+        android:textColor="?attr/colorOnSurface"
+        android:layout_marginBottom="24dp" />
 
     <!-- Font Family Section -->
     <TextView
@@ -19,15 +21,17 @@
         android:layout_height="wrap_content"
         android:text="@string/font_family"
         android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+        android:textColor="?attr/colorOnSurface"
         android:layout_marginTop="8dp"
-        android:layout_marginBottom="8dp" />
+        android:layout_marginBottom="12dp" />
 
     <com.google.android.material.chip.ChipGroup
         android:id="@+id/fontChipGroup"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:singleSelection="true"
-        app:selectionRequired="true">
+        app:selectionRequired="true"
+        app:chipSpacingHorizontal="8dp">
 
         <com.google.android.material.chip.Chip
             android:id="@+id/fontSansSerif"
@@ -58,15 +62,17 @@
         android:layout_height="wrap_content"
         android:text="@string/theme"
         android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="8dp" />
+        android:textColor="?attr/colorOnSurface"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="12dp" />
 
     <com.google.android.material.chip.ChipGroup
         android:id="@+id/themeChipGroup"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         app:singleSelection="true"
-        app:selectionRequired="true">
+        app:selectionRequired="true"
+        app:chipSpacingHorizontal="8dp">
 
         <com.google.android.material.chip.Chip
             android:id="@+id/themeLight"
@@ -97,8 +103,9 @@
         android:layout_height="wrap_content"
         android:text="@string/line_spacing"
         android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="8dp" />
+        android:textColor="?attr/colorOnSurface"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="12dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -120,10 +127,11 @@
             android:id="@+id/lineSpacingValue"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="16dp"
             android:text="1.5x"
-            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-            android:minWidth="48dp"
+            android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+            android:textColor="?attr/colorOnSurface"
+            android:minWidth="56dp"
             android:gravity="end" />
 
     </LinearLayout>
@@ -134,8 +142,9 @@
         android:layout_height="wrap_content"
         android:text="@string/margins"
         android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="8dp" />
+        android:textColor="?attr/colorOnSurface"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="12dp" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -157,10 +166,11 @@
             android:id="@+id/marginValue"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="16dp"
             android:text="16dp"
-            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-            android:minWidth="48dp"
+            android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+            android:textColor="?attr/colorOnSurface"
+            android:minWidth="56dp"
             android:gravity="end" />
 
     </LinearLayout>
@@ -170,7 +180,8 @@
         android:id="@+id/btnApply"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:text="@string/apply_settings" />
+        android:layout_marginTop="32dp"
+        android:text="@string/apply_settings"
+        style="@style/Widget.App.Button" />
 
 </LinearLayout>

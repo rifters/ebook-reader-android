@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">EBook Reader</string>
+    <string name="add_book">Add Book</string>
+    <string name="no_books">No books found. Tap + to add your first book.</string>
+    <string name="settings">Settings</string>
+    <string name="about">About</string>
+    <string name="book_title">Title</string>
+    <string name="book_author">Author</string>
+    <string name="book_progress">Progress</string>
+    <string name="reading_progress">Reading Progress: %1$d%%</string>
+    <string name="last_read">Last read: %1$s</string>
+    <string name="file_size">File size: %1$s</string>
+    <string name="pages_read">%1$d of %2$d pages</string>
+    <string name="open_book">Open Book</string>
+    <string name="delete_book">Delete Book</string>
+    <string name="book_info">Book Information</string>
+    <string name="tts_play">Play</string>
+    <string name="tts_pause">Pause</string>
+    <string name="tts_stop">Stop</string>
+    <string name="text_size">Text Size</string>
+    <string name="brightness">Brightness</string>
+    <string name="night_mode">Night Mode</string>
+    <string name="bookmark">Bookmark</string>
+    <string name="bookmarks">Bookmarks</string>
+    <string name="search">Search</string>
+    <string name="previous_chapter">Previous Chapter</string>
+    <string name="next_chapter">Next Chapter</string>
+    <string name="table_of_contents">Table of Contents</string>
+    <string name="error_opening_file">Error opening file</string>
+    <string name="error_unsupported_format">Unsupported file format</string>
+    <string name="permission_required">Storage permission required to access books</string>
+</resources>

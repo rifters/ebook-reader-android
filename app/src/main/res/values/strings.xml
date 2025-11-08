@@ -67,4 +67,27 @@
     <string name="margins">Margins</string>
     <string name="apply_settings">Apply</string>
     <string name="customize_reading">Customize Reading</string>
+    
+    <!-- Collections -->
+    <string name="collections">Collections</string>
+    <string name="my_collections">My Collections</string>
+    <string name="create_collection">Create Collection</string>
+    <string name="rename_collection">Rename Collection</string>
+    <string name="delete_collection">Delete Collection</string>
+    <string name="delete_collection_confirmation">Are you sure you want to delete this collection? Books will not be deleted.</string>
+    <string name="collection_name">Collection Name</string>
+    <string name="enter_collection_name">Enter collection name</string>
+    <string name="collection_created">Collection created</string>
+    <string name="collection_updated">Collection updated</string>
+    <string name="collection_deleted">Collection deleted</string>
+    <string name="add_to_collection">Add to Collection</string>
+    <string name="remove_from_collection">Remove from Collection</string>
+    <string name="book_added_to_collection">Book added to collection</string>
+    <string name="book_removed_from_collection">Book removed from collection</string>
+    <string name="no_collections">No collections yet. Tap + to create your first collection.</string>
+    <string name="books_in_collection">%1$d books</string>
+    <string name="one_book_in_collection">1 book</string>
+    <string name="manage_collections">Manage Collections</string>
+    <string name="select_collections">Select Collections</string>
+    <string name="collection_name_required">Collection name is required</string>
 </resources>

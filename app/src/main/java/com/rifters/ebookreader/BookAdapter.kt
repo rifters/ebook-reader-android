@@ -12,7 +12,8 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 class BookAdapter(
-    private val onBookClick: (Book) -> Unit
+    private val onBookClick: (Book) -> Unit,
+    private val onBookLongClick: ((Book) -> Unit)? = null
 ) : ListAdapter<Book, BookAdapter.BookViewHolder>(BookDiffCallback()) {
     
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BookViewHolder {
@@ -21,7 +22,7 @@ class BookAdapter(
             parent,
             false
         )
-        return BookViewHolder(binding, onBookClick)
+        return BookViewHolder(binding, onBookClick, onBookLongClick)
     }
     
     override fun onBindViewHolder(holder: BookViewHolder, position: Int) {
@@ -30,7 +31,8 @@ class BookAdapter(
     
     class BookViewHolder(
         private val binding: ItemBookBinding,
-        private val onBookClick: (Book) -> Unit
+        private val onBookClick: (Book) -> Unit,
+        private val onBookLongClick: ((Book) -> Unit)?
     ) : RecyclerView.ViewHolder(binding.root) {
         
         fun bind(book: Book) {
@@ -49,6 +51,11 @@ class BookAdapter(
                 
                 root.setOnClickListener {
                     onBookClick(book)
+                }
+                
+                root.setOnLongClickListener {
+                    onBookLongClick?.invoke(book)
+                    true
                 }
                 
                 // TODO: Load cover image if available

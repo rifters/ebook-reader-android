@@ -50,6 +50,15 @@
             android:exported="false"
             android:label="@string/about" />
 
+        <activity
+            android:name=".CollectionsActivity"
+            android:exported="false"
+            android:label="@string/collections" />
+
+        <activity
+            android:name=".CollectionBooksActivity"
+            android:exported="false" />
+
     </application>
 
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />

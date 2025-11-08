@@ -7,7 +7,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
-import com.github.barteksc.pdfviewer.PDFView
+// import com.github.barteksc.pdfviewer.PDFView
 import com.rifters.ebookreader.databinding.ActivityViewerBinding
 import com.rifters.ebookreader.viewmodel.BookViewModel
 import kotlinx.coroutines.Dispatchers
@@ -138,10 +138,18 @@ class ViewerActivity : AppCompatActivity() {
         withContext(Dispatchers.Main) {
             binding.apply {
                 loadingProgressBar.visibility = View.GONE
-                pdfView.visibility = View.VISIBLE
+                // PDF viewer library not included yet
+                // pdfView.visibility = View.VISIBLE
                 webView.visibility = View.GONE
-                scrollView.visibility = View.GONE
+                scrollView.visibility = View.VISIBLE
                 
+                // Temporary placeholder for PDF viewing
+                textView.text = "PDF viewer library is not yet configured.\n\n" +
+                        "File: ${file.name}\n" +
+                        "Size: ${file.length() / 1024} KB\n\n" +
+                        "To enable PDF viewing, add the android-pdf-viewer library."
+                
+                /* TODO: Uncomment when PDF library is added
                 pdfView.fromFile(file)
                     .defaultPage(currentPage)
                     .onPageChange { page, pageCount ->
@@ -156,6 +164,7 @@ class ViewerActivity : AppCompatActivity() {
                         ).show()
                     }
                     .load()
+                */
             }
         }
     }
@@ -164,7 +173,7 @@ class ViewerActivity : AppCompatActivity() {
         withContext(Dispatchers.Main) {
             binding.apply {
                 loadingProgressBar.visibility = View.GONE
-                pdfView.visibility = View.GONE
+                // pdfView.visibility = View.GONE
                 webView.visibility = View.VISIBLE
                 scrollView.visibility = View.GONE
                 
@@ -200,7 +209,7 @@ class ViewerActivity : AppCompatActivity() {
         withContext(Dispatchers.Main) {
             binding.apply {
                 loadingProgressBar.visibility = View.GONE
-                pdfView.visibility = View.GONE
+                // pdfView.visibility = View.GONE
                 webView.visibility = View.GONE
                 scrollView.visibility = View.VISIBLE
                 

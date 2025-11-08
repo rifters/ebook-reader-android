@@ -63,15 +63,15 @@ dependencies {
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     
-    // EPUB parsing
-    implementation("nl.siegmann.epublib:epublib-core:3.1")
-    implementation("org.slf4j:slf4j-android:1.7.25")
+    // EPUB parsing - using a maintained fork
+    // implementation("nl.siegmann.epublib:epublib-core:3.1")
+    // implementation("org.slf4j:slf4j-android:1.7.25")
     
-    // PDF support
-    implementation("com.github.barteksc:android-pdf-viewer:3.2.0-beta.1")
+    // PDF support - requires JitPack setup
+    // implementation("com.github.barteksc:android-pdf-viewer:3.2.0-beta.1")
     
-    // File picker
-    implementation("com.github.dhaval2404:imagepicker:2.1")
+    // File picker - using a simpler implementation
+    // implementation("com.github.dhaval2404:imagepicker:2.1")
     
     // Preferences
     implementation("androidx.preference:preference-ktx:1.2.1")

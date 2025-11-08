@@ -58,6 +58,11 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         setupToolbar()
         setupBottomBar()
         setupTTS()
+        
+        // Apply saved theme on activity load
+        val preferences = preferencesManager.getReadingPreferences()
+        applyThemeToUI(preferences)
+        
         loadBookFromIntent()
     }
     
@@ -262,7 +267,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     
                     // Apply theme background
                     val preferences = preferencesManager.getReadingPreferences()
-                    binding.contentContainer.setBackgroundColor(preferences.theme.backgroundColor)
+                    applyThemeToUI(preferences)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -564,9 +569,20 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         bottomSheet.show(supportFragmentManager, ReadingSettingsBottomSheet.TAG)
     }
     
-    private fun applyReadingPreferences(preferences: ReadingPreferences) {
-        // Apply theme colors to container
+    private fun applyThemeToUI(preferences: ReadingPreferences) {
+        // Apply theme colors to all UI elements
         binding.contentContainer.setBackgroundColor(preferences.theme.backgroundColor)
+        
+        // Apply to toolbar (keep default colors for better visibility)
+        // Toolbar colors are managed by the theme system
+        
+        // Apply to bottom bar (keep default colors for better visibility)
+        // Bottom bar colors are managed by the theme system
+    }
+    
+    private fun applyReadingPreferences(preferences: ReadingPreferences) {
+        // Apply theme to all UI elements
+        applyThemeToUI(preferences)
         
         // Apply to TextView (for TXT files)
         if (binding.textView.visibility == View.VISIBLE) {

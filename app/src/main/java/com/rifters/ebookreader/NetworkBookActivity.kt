@@ -71,7 +71,8 @@ class NetworkBookActivity : AppCompatActivity() {
             try {
                 val url = URL(urlString)
                 val fileName = url.path.substringAfterLast('/')
-                val file = File(getExternalFilesDir(null), fileName)
+                val storageDir = getExternalFilesDir(null) ?: filesDir
+                val file = File(storageDir, fileName)
                 
                 // Download file
                 url.openStream().use { input ->

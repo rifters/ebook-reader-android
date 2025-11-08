@@ -37,6 +37,18 @@
         <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.Material3.Corner.Small</item>
         <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.Material3.Corner.Medium</item>
         <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.Material3.Corner.Large</item>
+        
+        <!-- Activity transitions -->
+        <item name="android:windowAnimationStyle">@style/WindowAnimationTransition</item>
+        <item name="android:windowContentTransitions" tools:targetApi="lollipop">true</item>
+        <item name="android:windowEnterTransition" tools:targetApi="lollipop">@android:transition/slide_right</item>
+        <item name="android:windowExitTransition" tools:targetApi="lollipop">@android:transition/slide_left</item>
+    </style>
+
+    <!-- Window animations -->
+    <style name="WindowAnimationTransition">
+        <item name="android:windowEnterAnimation">@anim/slide_in_right</item>
+        <item name="android:windowExitAnimation">@anim/slide_out_left</item>
     </style>
 
     <!-- Toolbar theme -->

@@ -91,6 +91,11 @@ class MainActivity : AppCompatActivity() {
             } else {
                 LinearLayoutManager(this@MainActivity)
             }
+            // Add default item animator for smooth animations
+            itemAnimator = androidx.recyclerview.widget.DefaultItemAnimator().apply {
+                addDuration = 300
+                removeDuration = 300
+            }
         }
     }
     
@@ -101,6 +106,18 @@ class MainActivity : AppCompatActivity() {
         
         bookViewModel.allBooks.observe(this) { books ->
             bookAdapter.submitList(books)
+            
+            // Show/hide empty state with animation
+            if (books.isEmpty()) {
+                binding.recyclerView.visibility = android.view.View.GONE
+                binding.emptyStateLayout.visibility = android.view.View.VISIBLE
+                binding.emptyStateLayout.startAnimation(
+                    android.view.animation.AnimationUtils.loadAnimation(this, R.anim.fade_in_slide_up)
+                )
+            } else {
+                binding.emptyStateLayout.visibility = android.view.View.GONE
+                binding.recyclerView.visibility = android.view.View.VISIBLE
+            }
         }
     }
     
@@ -140,6 +157,11 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun setupFab() {
+        // Animate FAB on start
+        binding.fabAddBook.postDelayed({
+            binding.fabAddBook.show()
+        }, 300)
+        
         binding.fabAddBook.setOnClickListener {
             openFilePicker()
         }
@@ -152,6 +174,7 @@ class MainActivity : AppCompatActivity() {
             putExtra("book_title", book.title)
         }
         startActivity(intent)
+        overridePendingTransition(R.anim.slide_in_right, R.anim.fade_out)
     }
     
     private fun openFilePicker() {
@@ -377,21 +400,25 @@ class MainActivity : AppCompatActivity() {
             R.id.action_collections -> {
                 val intent = Intent(this, CollectionsActivity::class.java)
                 startActivity(intent)
+                overridePendingTransition(R.anim.slide_in_right, R.anim.fade_out)
                 true
             }
             R.id.action_download_network -> {
                 val intent = Intent(this, NetworkBookActivity::class.java)
                 startActivity(intent)
+                overridePendingTransition(R.anim.slide_in_right, R.anim.fade_out)
                 true
             }
             R.id.action_settings -> {
                 val intent = Intent(this, SettingsActivity::class.java)
                 startActivity(intent)
+                overridePendingTransition(R.anim.slide_in_right, R.anim.fade_out)
                 true
             }
             R.id.action_about -> {
                 val intent = Intent(this, AboutActivity::class.java)
                 startActivity(intent)
+                overridePendingTransition(R.anim.slide_in_right, R.anim.fade_out)
                 true
             }
             else -> super.onOptionsItemSelected(item)

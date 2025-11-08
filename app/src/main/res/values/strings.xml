@@ -90,4 +90,6 @@
     <string name="manage_collections">Manage Collections</string>
     <string name="select_collections">Select Collections</string>
     <string name="collection_name_required">Collection name is required</string>
+    <string name="library">Library</string>
+    <string name="app_settings">App Settings</string>
 </resources>

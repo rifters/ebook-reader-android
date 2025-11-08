@@ -43,6 +43,31 @@ class PreferencesManager(context: Context) {
         )
     }
     
+    // Sync preferences
+    fun setSyncEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_SYNC_ENABLED, enabled).apply()
+    }
+    
+    fun isSyncEnabled(): Boolean {
+        return prefs.getBoolean(KEY_SYNC_ENABLED, false)
+    }
+    
+    fun setAutoSyncEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_SYNC, enabled).apply()
+    }
+    
+    fun isAutoSyncEnabled(): Boolean {
+        return prefs.getBoolean(KEY_AUTO_SYNC, true)
+    }
+    
+    fun setLastSyncTimestamp(timestamp: Long) {
+        prefs.edit().putLong(KEY_LAST_SYNC, timestamp).apply()
+    }
+    
+    fun getLastSyncTimestamp(): Long {
+        return prefs.getLong(KEY_LAST_SYNC, 0L)
+    }
+    
     companion object {
         private const val PREFS_NAME = "reading_preferences"
         private const val KEY_FONT_FAMILY = "font_family"
@@ -50,5 +75,8 @@ class PreferencesManager(context: Context) {
         private const val KEY_LINE_SPACING = "line_spacing"
         private const val KEY_MARGIN_HORIZONTAL = "margin_horizontal"
         private const val KEY_MARGIN_VERTICAL = "margin_vertical"
+        private const val KEY_SYNC_ENABLED = "sync_enabled"
+        private const val KEY_AUTO_SYNC = "auto_sync"
+        private const val KEY_LAST_SYNC = "last_sync_timestamp"
     }
 }

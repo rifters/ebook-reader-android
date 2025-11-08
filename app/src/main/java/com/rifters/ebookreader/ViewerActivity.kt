@@ -16,6 +16,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.rifters.ebookreader.databinding.ActivityViewerBinding
+import com.rifters.ebookreader.model.Bookmark
 import com.rifters.ebookreader.model.ReadingPreferences
 import com.rifters.ebookreader.util.PreferencesManager
 import com.rifters.ebookreader.viewmodel.BookViewModel
@@ -94,6 +95,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_view_bookmarks -> {
+                showBookmarks()
+                true
+            }
             R.id.action_tts_play -> {
                 toggleTTS()
                 true
@@ -513,6 +518,41 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
         } ?: run {
             Toast.makeText(this, "No book loaded", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    private fun showBookmarks() {
+        currentBook?.let { book ->
+            val bottomSheet = BookmarksBottomSheet.newInstance(book.id)
+            bottomSheet.setOnBookmarkSelectedListener { bookmark ->
+                navigateToBookmark(bookmark)
+            }
+            bottomSheet.show(supportFragmentManager, BookmarksBottomSheet.TAG)
+        } ?: run {
+            Toast.makeText(this, "No book loaded", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    private fun navigateToBookmark(bookmark: Bookmark) {
+        if (pdfRenderer != null && totalPdfPages > 0) {
+            // For PDF files, navigate to the bookmarked page
+            if (bookmark.page in 0 until totalPdfPages) {
+                currentPage = bookmark.page
+                renderPdfPage(currentPage)
+                Toast.makeText(
+                    this,
+                    getString(R.string.page_format, bookmark.page + 1),
+                    Toast.LENGTH_SHORT
+                ).show()
+            } else {
+                Toast.makeText(this, "Invalid page number", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(
+                this,
+                "Page navigation not available for this format",
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
     

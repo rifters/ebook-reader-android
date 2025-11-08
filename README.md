@@ -4,47 +4,82 @@ A modern Android e-book reader application built with Kotlin, supporting PDF, EP
 
 ## Features
 
-- 📚 Support for multiple formats (PDF, EPUB, MOBI, TXT, CBZ, CBR)
-- 💾 Local database storage using Room
-- 📊 Reading progress tracking
-- 🎨 Material Design 3 UI
-- 📖 Book library management
-- 🔖 Bookmark support (in progress)
-- 🌙 Night mode ready (in progress)
+- 📚 **Multi-format Support** - PDF, EPUB, MOBI, TXT, CBZ, CBR
+- 💾 **Local Database** - Room database for efficient storage
+- 📊 **Progress Tracking** - Automatic reading progress and completion tracking
+- 🎨 **Material Design 3 UI** - Modern, polished interface with purple theme
+- 📖 **Library Management** - Grid and list view options for your collection
+- 🖼️ **Dynamic Book Covers** - Auto-generated colorful covers with title and author
+- 🔖 **Bookmarks** - Save and manage reading positions with notes
+- ☁️ **Cloud Sync** - Sync reading progress across devices with Firebase
+- ✨ **Smooth Animations** - Polished transitions and micro-interactions
+- 🎯 **Custom Icons** - Consistent design language with vector icons
 
 ## Project Structure
 
 ### Core Components
 
 #### Activities
-- **MainActivity.kt** - Main screen displaying the book library with RecyclerView
+- **MainActivity.kt** - Main screen with grid/list toggle, search, sort, and filter
 - **ViewerActivity.kt** - Book reading interface with format-specific viewers
+- **CollectionsActivity.kt** - Manage book collections and categories
+- **NetworkBookActivity.kt** - Download books from URL
+- **SettingsActivity.kt** - App preferences and cloud sync settings
+- **AboutActivity.kt** - App information and credits
+- **EditBookActivity.kt** - Edit book metadata
 
 #### Data Layer
-- **Book.kt** - Room entity for book data model
-- **BookDao.kt** - Room DAO for database operations
-- **BookDatabase.kt** - Room database configuration
+- **Book.kt** - Room entity for book data model with progress tracking
+- **Bookmark.kt** - Room entity for bookmarks with notes
+- **Collection.kt** - Room entity for organizing books into collections
+- **BookDao.kt** - Room DAO for book database operations
+- **BookmarkDao.kt** - Room DAO for bookmark operations
+- **CollectionDao.kt** - Room DAO for collection management
+- **BookDatabase.kt** - Room database configuration with migrations
 
-#### ViewModel
-- **BookViewModel.kt** - MVVM architecture ViewModel for managing book data
+#### ViewModels
+- **BookViewModel.kt** - Manages book data, search, sort, and filter
+- **CollectionViewModel.kt** - Manages collections and book-collection relationships
+- **SyncViewModel.kt** - Handles cloud sync operations and status
 
 #### Adapters
-- **BookAdapter.kt** - RecyclerView adapter with DiffUtil for efficient list updates
+- **BookAdapter.kt** - RecyclerView adapter with dynamic cover generation
+- **BookmarkAdapter.kt** - Displays bookmarks in bottom sheet
+- **CollectionAdapter.kt** - Manages collection list display
+
+#### Utilities
+- **BookCoverGenerator.kt** - Generates colorful default book covers
+- **PreferencesManager.kt** - Manages app preferences and settings
+- **FileValidator.kt** - Validates file formats and integrity
+- **BitmapCache.kt** - Efficient image caching for covers
 
 ### Resources
 
 #### Layouts
 - **activity_main.xml** - Main screen with RecyclerView, Toolbar, and FAB
-- **activity_viewer.xml** - Book viewer with multiple view types (PDF, WebView, TextView)
-- **item_book.xml** - Book item card with cover, title, author, and progress
+- **activity_viewer.xml** - Book viewer with multiple view types and bottom app bar
+- **activity_collections.xml** - Collections management screen
+- **activity_settings.xml** - Settings and preferences screen
+- **item_book.xml** - List view book card with cover, title, author, and progress
+- **item_book_grid.xml** - Grid view book card optimized for cover display
+- **item_collection.xml** - Collection item with icon and book count
+- **bottom_sheet_bookmarks.xml** - Bookmarks management bottom sheet
+- **bottom_sheet_reading_settings.xml** - Reading preferences (font, theme, spacing)
 
 #### Values
-- **strings.xml** - All string resources
-- **colors.xml** - Color palette
-- **themes.xml** - Material Design 3 theme configuration
+- **strings.xml** - All string resources with i18n support
+- **colors.xml** - Material Design 3 color palette (purple-based)
+- **themes.xml** - Material Design 3 theme with custom styles and animations
+
+#### Drawables
+- **Custom Icons** - ic_add, ic_book, ic_bookmark, ic_collection, ic_settings, etc.
+- **Animations** - fade_in, slide_in_right, scale_in, and more
+- **Ripple Effects** - Touch feedback for interactive elements
 
 #### Menus
-- **main_menu.xml** - Main activity menu with settings and about options
+- **main_menu.xml** - Search, sort, filter, sync, and view toggle
+- **viewer_menu.xml** - Reading options and bookmarks
+- **book_menu.xml** - Book actions (edit, delete, share)
 
 ## Dependencies
 
@@ -111,39 +146,134 @@ cd ebook-reader-android
 ./gradlew installDebug
 ```
 
+## UI/UX Highlights
+
+### Modern Material Design 3
+The app features a completely refreshed UI following Material Design 3 guidelines:
+
+- **Color Palette**: Vibrant purple-based theme (#6750A4 primary) with proper elevation and shadows
+- **Typography**: Consistent Material 3 text appearances for better readability
+- **Cards**: Elevated cards with 12dp corner radius and smooth ripple effects
+- **Icons**: Custom vector icons throughout for consistent design language
+
+### Flexible View Modes
+Browse your library in two ways:
+
+- **List View**: Detailed view showing cover, title, author, progress bar, and reading status
+- **Grid View**: Cover-focused 2-column layout perfect for visual browsing
+- Toggle instantly via toolbar menu, preference saved automatically
+
+### Dynamic Book Covers
+Books without cover images get beautiful auto-generated covers:
+
+- **10 Color Schemes**: Unique colors assigned via title hash for consistent identity
+- **Professional Design**: Dual borders, gradient overlay, and book emoji icon
+- **Custom Typography**: Title and author displayed with adaptive sizing
+
+### Smooth Animations
+Polished experience with subtle micro-interactions:
+
+- **Activity Transitions**: 300ms slide animations when navigating
+- **RecyclerView Items**: Smooth add/remove animations
+- **FAB**: Delayed entrance animation (300ms)
+- **Empty States**: Fade-in with slide-up effect
+
+### Enhanced Components
+- **Empty States**: Large icons with descriptive text instead of plain messages
+- **Bottom Sheets**: Reading settings and bookmarks with improved spacing
+- **Progress Indicators**: Material 3 circular and linear progress bars
+- **Toolbar**: Elevated with proper theming and icon tinting
+
 ## Features Roadmap
 
-### Implemented ✅
+### Recently Completed ✅
+- [x] Material Design 3 UI refresh with purple theme
+- [x] Grid and list view toggle for library
+- [x] Dynamic book cover generation with title/author
+- [x] Smooth animations and transitions throughout app
+- [x] Custom vector icons for consistent design
+- [x] Enhanced empty states with illustrations
+- [x] Cloud sync with Firebase
+- [x] Bookmarks with notes support
+- [x] Collections for organizing books
+- [x] Search, sort, and filter functionality
+- [x] File validation and error handling
+- [x] Network book download from URL
+
+### Core Features ✅
 - [x] Project structure and configuration
-- [x] Room database setup
+- [x] Room database with migrations
 - [x] Book library UI with RecyclerView
 - [x] Book data model with progress tracking
 - [x] Material Design 3 theming
-- [x] Basic PDF viewer integration
-- [x] Basic EPUB viewer integration
-- [x] Basic MOBI viewer integration
+- [x] PDF viewer (Android PdfRenderer)
+- [x] EPUB viewer (custom implementation)
+- [x] MOBI viewer (basic PalmDB format)
 - [x] CBZ (Comic Book ZIP) viewer
 - [x] CBR (Comic Book RAR) viewer
 - [x] Text file viewer
-- [x] ProGuard configuration
+- [x] Settings and preferences
+- [x] About screen
 
-### In Progress 🚧
-- [ ] File picker integration
-- [ ] Bookmark functionality
-- [ ] Settings screen
-- [ ] About screen
-- [ ] Cover image loading and caching
+### Future Enhancements 🚀
 
-### Planned 📋
-- [ ] Advanced EPUB rendering
-- [ ] Advanced MOBI rendering with proper formatting
-- [ ] Table of Contents navigation
-- [ ] Text-to-Speech support
-- [ ] Search functionality
-- [ ] Night mode toggle
-- [ ] Font size adjustment
-- [ ] Reading statistics
-- [x] Cloud sync support
+#### User Experience
+- [ ] **Dark Mode** - System-aware dark theme support
+- [ ] **Reading Themes** - Additional color schemes (Sepia, Night, Custom)
+- [ ] **Font Customization** - More font families and size options
+- [ ] **Reading Statistics** - Track reading time, books finished, pages read
+- [ ] **Achievements/Badges** - Gamification for reading milestones
+- [ ] **Book Recommendations** - Suggest similar books based on reading history
+- [ ] **Import/Export** - Backup and restore library data
+
+#### Reading Features
+- [ ] **Advanced EPUB Rendering** - Better formatting and image support
+- [ ] **Table of Contents** - Navigate chapters easily
+- [ ] **Text-to-Speech** - Listen to books with TTS engine
+- [ ] **Highlighting** - Mark and annotate text passages
+- [ ] **Dictionary Integration** - Look up words while reading
+- [ ] **Night Mode Toggle** - Quick toggle in viewer
+- [ ] **Page Flip Animations** - Realistic page turning effects
+- [ ] **Split-Screen Reading** - Compare pages or translations
+
+#### Library Management
+- [ ] **Smart Collections** - Auto-organize by author, genre, year
+- [ ] **Tags System** - Flexible categorization beyond collections
+- [ ] **Reading Goals** - Set and track reading targets
+- [ ] **Book Ratings** - Personal rating system
+- [ ] **Reading Lists** - Plan your reading queue
+- [ ] **Advanced Search** - Full-text search within books
+- [ ] **Duplicate Detection** - Find and merge duplicate books
+
+#### Cloud & Sync
+- [ ] **Multi-device Sync** - Real-time sync across devices
+- [ ] **Sync Book Files** - Optional cloud storage for book files
+- [ ] **Collaborative Collections** - Share collections with others
+- [ ] **Reading Progress Sharing** - Share updates on social media
+- [ ] **Backup to Google Drive** - Alternative cloud backup option
+
+#### Performance & Technical
+- [ ] **PDF Rendering Optimization** - Faster page loading and caching
+- [ ] **Background Downloads** - Download books in background
+- [ ] **Offline Mode Indicator** - Clear sync status display
+- [ ] **Battery Optimization** - Reduce battery usage during reading
+- [ ] **Memory Management** - Better handling of large files
+- [ ] **File Format Extensions** - Support for FB2, AZW3, DjVu
+
+#### Accessibility
+- [ ] **Screen Reader Support** - Full TalkBack compatibility
+- [ ] **High Contrast Mode** - Better visibility for low vision
+- [ ] **Font Scaling** - Respect system font size preferences
+- [ ] **Voice Commands** - Navigate with voice
+- [ ] **Gesture Customization** - Customize reading gestures
+
+#### Advanced Features
+- [ ] **Note Syncing** - Sync highlights and notes to Markdown
+- [ ] **Export Annotations** - Export highlights to text/PDF
+- [ ] **Reading Challenges** - Participate in community challenges
+- [ ] **Book Metadata Editing** - Comprehensive metadata management
+- [ ] **Cover Image Search** - Auto-fetch covers from online sources
+- [ ] **Plugin System** - Extensible architecture for custom features
 
 ## Cloud Sync
 
@@ -207,13 +337,38 @@ The app includes cloud sync functionality to synchronize reading progress, bookm
 - **CBZ** - Comic Book ZIP archive
 - **CBR** - Comic Book RAR archive
 
+## Contributing
+
+Contributions are welcome! Here's how you can help:
+
+### Getting Started
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes following the project's coding standards
+4. Test your changes thoroughly
+5. Commit with clear, descriptive messages
+6. Push to your fork and submit a Pull Request
+
+### Areas for Contribution
+- **Bug Fixes**: Found a bug? Fix it and submit a PR
+- **New Features**: Check the roadmap for planned features
+- **Documentation**: Improve README, add code comments, or write guides
+- **UI/UX**: Design improvements and accessibility enhancements
+- **Testing**: Add unit tests, integration tests, or UI tests
+- **Performance**: Optimize code for better speed and efficiency
+- **Translations**: Help translate the app to other languages
+
+### Code Standards
+- Follow Kotlin coding conventions
+- Use Material Design 3 components and guidelines
+- Maintain MVVM architecture pattern
+- Write meaningful commit messages
+- Add tests for new features
+- Update documentation as needed
+
 ## License
 
 [Add your license here]
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Author
 

@@ -146,6 +146,11 @@
     <string name="library">Library</string>
     <string name="app_settings">App Settings</string>
     
+    <!-- View Options -->
+    <string name="toggle_view">Toggle View</string>
+    <string name="grid_view">Grid View</string>
+    <string name="list_view">List View</string>
+    
     <!-- Error Messages -->
     <string name="error_file_not_found">File not found. The file may have been deleted or moved.</string>
     <string name="error_file_corrupted">File appears to be corrupted or damaged. Please try a different file.</string>

@@ -10,7 +10,8 @@
         android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:theme="@style/ToolbarTheme">
+        android:theme="@style/ToolbarTheme"
+        android:elevation="4dp">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
@@ -18,7 +19,8 @@
             android:layout_height="?attr/actionBarSize"
             android:background="?attr/colorPrimary"
             app:navigationIcon="@android:drawable/ic_menu_close_clear_cancel"
-            app:popupTheme="@style/ThemeOverlay.Material3.Light" />
+            app:popupTheme="@style/ThemeOverlay.Material3.Light"
+            app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge" />
 
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -26,6 +28,7 @@
         android:id="@+id/contentContainer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:background="?attr/colorSurface"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
         <!-- PDF Viewer will be added when library is configured -->
@@ -58,23 +61,28 @@
             android:id="@+id/scrollView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:visibility="gone">
+            android:visibility="gone"
+            android:scrollbarStyle="outsideOverlay"
+            android:fadeScrollbars="false">
 
             <TextView
                 android:id="@+id/textView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="16dp"
-                android:textSize="16sp"
+                android:padding="24dp"
+                android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+                android:textColor="?attr/colorOnSurface"
+                android:lineSpacingExtra="4dp"
                 tools:text="Book content goes here..." />
 
         </ScrollView>
 
-        <ProgressBar
+        <com.google.android.material.progressindicator.CircularProgressIndicator
             android:id="@+id/loadingProgressBar"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
+            android:indeterminate="true"
             android:visibility="visible" />
 
     </FrameLayout>
@@ -85,22 +93,26 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
         app:fabAlignmentMode="center"
-        app:hideOnScroll="true">
+        app:hideOnScroll="true"
+        app:backgroundTint="?attr/colorSurface"
+        app:elevation="8dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center">
+            android:gravity="center"
+            android:paddingVertical="8dp">
 
             <ImageButton
                 android:id="@+id/btnPreviousChapter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/ripple_circular"
                 android:contentDescription="@string/previous_chapter"
                 android:padding="12dp"
-                android:src="@android:drawable/ic_media_previous" />
+                android:src="@drawable/ic_previous"
+                app:tint="?attr/colorOnSurface" />
 
             <Space
                 android:layout_width="0dp"
@@ -109,12 +121,13 @@
 
             <ImageButton
                 android:id="@+id/btnBookmark"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/ripple_circular"
                 android:contentDescription="@string/bookmark"
                 android:padding="12dp"
-                android:src="@android:drawable/btn_star" />
+                android:src="@drawable/ic_bookmark_border"
+                app:tint="?attr/colorOnSurface" />
 
             <Space
                 android:layout_width="0dp"
@@ -123,12 +136,13 @@
 
             <ImageButton
                 android:id="@+id/btnNextChapter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/ripple_circular"
                 android:contentDescription="@string/next_chapter"
                 android:padding="12dp"
-                android:src="@android:drawable/ic_media_next" />
+                android:src="@drawable/ic_next"
+                app:tint="?attr/colorOnSurface" />
 
         </LinearLayout>
 

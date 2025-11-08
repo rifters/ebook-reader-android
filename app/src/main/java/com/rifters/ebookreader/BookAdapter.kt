@@ -1,11 +1,13 @@
 package com.rifters.ebookreader
 
+import android.graphics.Bitmap
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.rifters.ebookreader.databinding.ItemBookBinding
+import com.rifters.ebookreader.util.BookCoverGenerator
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -64,16 +66,28 @@ class BookAdapter(
                     onBookMenuClick?.invoke(book)
                 }
                 
-                // Load cover image if available
+                // Load cover image if available, otherwise generate default
                 if (!book.coverImagePath.isNullOrEmpty()) {
                     val coverFile = java.io.File(book.coverImagePath)
                     if (coverFile.exists()) {
                         bookCoverImageView.setImageURI(android.net.Uri.fromFile(coverFile))
                     } else {
-                        bookCoverImageView.setImageResource(android.R.drawable.ic_menu_gallery)
+                        // Generate default cover with title and author
+                        val defaultCover = BookCoverGenerator.generateDefaultCover(
+                            root.context,
+                            book.title,
+                            book.author
+                        )
+                        bookCoverImageView.setImageBitmap(defaultCover)
                     }
                 } else {
-                    bookCoverImageView.setImageResource(android.R.drawable.ic_menu_gallery)
+                    // Generate default cover with title and author
+                    val defaultCover = BookCoverGenerator.generateDefaultCover(
+                        root.context,
+                        book.title,
+                        book.author
+                    )
+                    bookCoverImageView.setImageBitmap(defaultCover)
                 }
             }
         }

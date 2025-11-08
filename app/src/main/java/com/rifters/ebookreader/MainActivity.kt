@@ -1,6 +1,7 @@
 package com.rifters.ebookreader
 
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
 import android.view.Menu
@@ -12,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.rifters.ebookreader.databinding.ActivityMainBinding
 import com.rifters.ebookreader.util.FileValidator
@@ -34,8 +36,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var collectionViewModel: CollectionViewModel
     private lateinit var syncViewModel: SyncViewModel
     private lateinit var bookAdapter: BookAdapter
+    private lateinit var preferences: SharedPreferences
     private var searchView: SearchView? = null
     private var syncMenuItem: MenuItem? = null
+    private var toggleViewMenuItem: MenuItem? = null
+    private var isGridView = false
+    
+    companion object {
+        private const val PREF_VIEW_MODE = "view_mode"
+        private const val VIEW_MODE_LIST = "list"
+        private const val VIEW_MODE_GRID = "grid"
+    }
     
     private val filePickerLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -47,6 +58,9 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        
+        preferences = getSharedPreferences("app_preferences", MODE_PRIVATE)
+        isGridView = preferences.getString(PREF_VIEW_MODE, VIEW_MODE_LIST) == VIEW_MODE_GRID
         
         setupToolbar()
         setupRecyclerView()
@@ -72,7 +86,16 @@ class MainActivity : AppCompatActivity() {
         
         binding.recyclerView.apply {
             adapter = bookAdapter
-            layoutManager = LinearLayoutManager(this@MainActivity)
+            layoutManager = if (isGridView) {
+                GridLayoutManager(this@MainActivity, 2)
+            } else {
+                LinearLayoutManager(this@MainActivity)
+            }
+            // Add default item animator for smooth animations
+            itemAnimator = androidx.recyclerview.widget.DefaultItemAnimator().apply {
+                addDuration = 300
+                removeDuration = 300
+            }
         }
     }
     
@@ -83,6 +106,18 @@ class MainActivity : AppCompatActivity() {
         
         bookViewModel.allBooks.observe(this) { books ->
             bookAdapter.submitList(books)
+            
+            // Show/hide empty state with animation
+            if (books.isEmpty()) {
+                binding.recyclerView.visibility = android.view.View.GONE
+                binding.emptyStateLayout.visibility = android.view.View.VISIBLE
+                binding.emptyStateLayout.startAnimation(
+                    android.view.animation.AnimationUtils.loadAnimation(this, R.anim.fade_in_slide_up)
+                )
+            } else {
+                binding.emptyStateLayout.visibility = android.view.View.GONE
+                binding.recyclerView.visibility = android.view.View.VISIBLE
+            }
         }
     }
     
@@ -122,6 +157,11 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun setupFab() {
+        // Animate FAB on start
+        binding.fabAddBook.postDelayed({
+            binding.fabAddBook.show()
+        }, 300)
+        
         binding.fabAddBook.setOnClickListener {
             openFilePicker()
         }
@@ -134,6 +174,7 @@ class MainActivity : AppCompatActivity() {
             putExtra("book_title", book.title)
         }
         startActivity(intent)
+        overridePendingTransition(R.anim.slide_in_right, R.anim.fade_out)
     }
     
     private fun openFilePicker() {
@@ -324,14 +365,22 @@ class MainActivity : AppCompatActivity() {
             })
         }
         
-        // Store sync menu item reference
+        // Store menu item references
         syncMenuItem = menu.findItem(R.id.action_sync)
+        toggleViewMenuItem = menu.findItem(R.id.action_toggle_view)
+        
+        // Update toggle view icon based on current mode
+        updateToggleViewIcon()
         
         return true
     }
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_toggle_view -> {
+                toggleViewMode()
+                true
+            }
             R.id.action_search -> {
                 // Handled by SearchView
                 true
@@ -351,21 +400,25 @@ class MainActivity : AppCompatActivity() {
             R.id.action_collections -> {
                 val intent = Intent(this, CollectionsActivity::class.java)
                 startActivity(intent)
+                overridePendingTransition(R.anim.slide_in_right, R.anim.fade_out)
                 true
             }
             R.id.action_download_network -> {
                 val intent = Intent(this, NetworkBookActivity::class.java)
                 startActivity(intent)
+                overridePendingTransition(R.anim.slide_in_right, R.anim.fade_out)
                 true
             }
             R.id.action_settings -> {
                 val intent = Intent(this, SettingsActivity::class.java)
                 startActivity(intent)
+                overridePendingTransition(R.anim.slide_in_right, R.anim.fade_out)
                 true
             }
             R.id.action_about -> {
                 val intent = Intent(this, AboutActivity::class.java)
                 startActivity(intent)
+                overridePendingTransition(R.anim.slide_in_right, R.anim.fade_out)
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -480,5 +533,34 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+    
+    private fun toggleViewMode() {
+        isGridView = !isGridView
+        
+        // Save preference
+        preferences.edit()
+            .putString(PREF_VIEW_MODE, if (isGridView) VIEW_MODE_GRID else VIEW_MODE_LIST)
+            .apply()
+        
+        // Update layout manager
+        binding.recyclerView.layoutManager = if (isGridView) {
+            GridLayoutManager(this, 2)
+        } else {
+            LinearLayoutManager(this)
+        }
+        
+        // Update icon
+        updateToggleViewIcon()
+        
+        // Show feedback
+        val message = if (isGridView) getString(R.string.grid_view) else getString(R.string.list_view)
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun updateToggleViewIcon() {
+        toggleViewMenuItem?.setIcon(
+            if (isGridView) R.drawable.ic_view_list else R.drawable.ic_view_grid
+        )
     }
 }

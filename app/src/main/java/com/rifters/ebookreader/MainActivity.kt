@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
+import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -57,6 +58,9 @@ class MainActivity : AppCompatActivity() {
             },
             onBookLongClick = { book ->
                 showAddToCollectionDialog(book)
+            },
+            onBookMenuClick = { book ->
+                showBookMenu(book)
             }
         )
         
@@ -257,5 +261,62 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+    
+    private fun showBookMenu(book: Book) {
+        val viewHolder = binding.recyclerView.findViewHolderForAdapterPosition(
+            bookAdapter.currentList.indexOf(book)
+        ) ?: return
+        
+        val menuButton = viewHolder.itemView.findViewById<android.widget.ImageButton>(R.id.menuButton)
+        
+        PopupMenu(this, menuButton).apply {
+            inflate(R.menu.book_menu)
+            setOnMenuItemClickListener { menuItem ->
+                when (menuItem.itemId) {
+                    R.id.action_edit -> {
+                        openEditBookActivity(book)
+                        true
+                    }
+                    R.id.action_delete -> {
+                        showDeleteBookConfirmation(book)
+                        true
+                    }
+                    else -> false
+                }
+            }
+            show()
+        }
+    }
+    
+    private fun openEditBookActivity(book: Book) {
+        val intent = Intent(this, EditBookActivity::class.java).apply {
+            putExtra("book_id", book.id)
+        }
+        startActivity(intent)
+    }
+    
+    private fun showDeleteBookConfirmation(book: Book) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.delete_book)
+            .setMessage("Are you sure you want to delete \"${book.title}\"?")
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                bookViewModel.deleteBook(book)
+                // Optionally delete the file
+                val file = File(book.filePath)
+                if (file.exists()) {
+                    file.delete()
+                }
+                // Delete cover image if exists
+                book.coverImagePath?.let { coverPath ->
+                    val coverFile = File(coverPath)
+                    if (coverFile.exists()) {
+                        coverFile.delete()
+                    }
+                }
+                Toast.makeText(this, "Book deleted", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 }

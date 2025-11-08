@@ -13,7 +13,8 @@ import java.util.concurrent.TimeUnit
 
 class BookAdapter(
     private val onBookClick: (Book) -> Unit,
-    private val onBookLongClick: ((Book) -> Unit)? = null
+    private val onBookLongClick: ((Book) -> Unit)? = null,
+    private val onBookMenuClick: ((Book) -> Unit)? = null
 ) : ListAdapter<Book, BookAdapter.BookViewHolder>(BookDiffCallback()) {
     
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BookViewHolder {
@@ -22,7 +23,7 @@ class BookAdapter(
             parent,
             false
         )
-        return BookViewHolder(binding, onBookClick, onBookLongClick)
+        return BookViewHolder(binding, onBookClick, onBookLongClick, onBookMenuClick)
     }
     
     override fun onBindViewHolder(holder: BookViewHolder, position: Int) {
@@ -32,7 +33,8 @@ class BookAdapter(
     class BookViewHolder(
         private val binding: ItemBookBinding,
         private val onBookClick: (Book) -> Unit,
-        private val onBookLongClick: ((Book) -> Unit)?
+        private val onBookLongClick: ((Book) -> Unit)?,
+        private val onBookMenuClick: ((Book) -> Unit)?
     ) : RecyclerView.ViewHolder(binding.root) {
         
         fun bind(book: Book) {
@@ -58,12 +60,21 @@ class BookAdapter(
                     true
                 }
                 
-                // TODO: Load cover image if available
-                // if (book.coverImagePath != null) {
-                //     Glide.with(binding.root.context)
-                //         .load(book.coverImagePath)
-                //         .into(bookCoverImageView)
-                // }
+                menuButton.setOnClickListener {
+                    onBookMenuClick?.invoke(book)
+                }
+                
+                // Load cover image if available
+                if (!book.coverImagePath.isNullOrEmpty()) {
+                    val coverFile = java.io.File(book.coverImagePath)
+                    if (coverFile.exists()) {
+                        bookCoverImageView.setImageURI(android.net.Uri.fromFile(coverFile))
+                    } else {
+                        bookCoverImageView.setImageResource(android.R.drawable.ic_menu_gallery)
+                    }
+                } else {
+                    bookCoverImageView.setImageResource(android.R.drawable.ic_menu_gallery)
+                }
             }
         }
         

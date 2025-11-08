@@ -90,4 +90,15 @@
     <string name="manage_collections">Manage Collections</string>
     <string name="select_collections">Select Collections</string>
     <string name="collection_name_required">Collection name is required</string>
+    
+    <!-- Edit Book -->
+    <string name="edit_book">Edit Book</string>
+    <string name="book_cover">Book Cover</string>
+    <string name="cover_image">Cover Image</string>
+    <string name="change_cover">Change Cover</string>
+    <string name="save">Save</string>
+    <string name="book_updated">Book updated successfully</string>
+    <string name="error_updating_book">Error updating book</string>
+    <string name="title_required">Title is required</string>
+    <string name="author_required">Author is required</string>
 </resources>

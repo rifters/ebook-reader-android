@@ -59,6 +59,11 @@
             android:name=".CollectionBooksActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".EditBookActivity"
+            android:exported="false"
+            android:label="@string/edit_book" />
+
     </application>
 
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />

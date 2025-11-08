@@ -52,7 +52,7 @@ class TocAdapter(
         }
     }
 
-    private class TocDiffCallback : DiffUtil.ItemCallback<TableOfContentsItem>() {
+    class TocDiffCallback : DiffUtil.ItemCallback<TableOfContentsItem>() {
         override fun areItemsTheSame(
             oldItem: TableOfContentsItem,
             newItem: TableOfContentsItem

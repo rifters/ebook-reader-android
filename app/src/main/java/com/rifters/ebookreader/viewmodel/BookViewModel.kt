@@ -51,13 +51,32 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
     val allBooks: LiveData<List<Book>> = _searchQuery.switchMap { query ->
         _filterOption.switchMap { filter ->
             _sortOrder.switchMap { sort ->
+                // Determine which query to use based on search and filter state
                 when {
-                    query.isNotEmpty() -> bookDao.searchBooks(query)
-                    filter == FilterOption.COMPLETED -> bookDao.getBooksByCompletionStatus(true)
-                    filter == FilterOption.NOT_COMPLETED -> bookDao.getBooksByCompletionStatus(false)
-                    sort == SortOrder.TITLE -> bookDao.getBooksSortedByTitle()
-                    sort == SortOrder.AUTHOR -> bookDao.getBooksSortedByAuthor()
-                    else -> bookDao.getBooksSortedByRecentlyRead()
+                    query.isNotEmpty() && filter == FilterOption.COMPLETED -> 
+                        bookDao.searchBooksWithFilter(query, true)
+                    query.isNotEmpty() && filter == FilterOption.NOT_COMPLETED -> 
+                        bookDao.searchBooksWithFilter(query, false)
+                    query.isNotEmpty() -> 
+                        bookDao.searchBooks(query)
+                    filter == FilterOption.COMPLETED && sort == SortOrder.TITLE -> 
+                        bookDao.getCompletedBooksSortedByTitle()
+                    filter == FilterOption.COMPLETED && sort == SortOrder.AUTHOR -> 
+                        bookDao.getCompletedBooksSortedByAuthor()
+                    filter == FilterOption.COMPLETED -> 
+                        bookDao.getBooksByCompletionStatus(true)
+                    filter == FilterOption.NOT_COMPLETED && sort == SortOrder.TITLE -> 
+                        bookDao.getNotCompletedBooksSortedByTitle()
+                    filter == FilterOption.NOT_COMPLETED && sort == SortOrder.AUTHOR -> 
+                        bookDao.getNotCompletedBooksSortedByAuthor()
+                    filter == FilterOption.NOT_COMPLETED -> 
+                        bookDao.getBooksByCompletionStatus(false)
+                    sort == SortOrder.TITLE -> 
+                        bookDao.getBooksSortedByTitle()
+                    sort == SortOrder.AUTHOR -> 
+                        bookDao.getBooksSortedByAuthor()
+                    else -> 
+                        bookDao.getBooksSortedByRecentlyRead()
                 }
             }
         }

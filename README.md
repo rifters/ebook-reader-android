@@ -59,6 +59,12 @@ A modern Android e-book reader application built with Kotlin, supporting PDF, EP
 - Room Database (with KTX)
 - Lifecycle ViewModel & LiveData
 - Kotlin Coroutines
+- WorkManager (for background sync)
+
+### Cloud Sync
+- Firebase BOM (Bill of Materials)
+- Firebase Firestore (for data storage)
+- Firebase Authentication (anonymous auth)
 
 ### File Format Support
 - **PDF**: Android built-in PdfRenderer
@@ -90,12 +96,17 @@ git clone https://github.com/rifters/ebook-reader-android.git
 cd ebook-reader-android
 ```
 
-2. Build the project:
+2. (Optional) Set up Firebase for cloud sync:
+   - Create a Firebase project and download your `google-services.json`
+   - Replace the placeholder file in `app/google-services.json`
+   - The app will build and run with the placeholder file, but sync won't work without a real Firebase project
+
+3. Build the project:
 ```bash
 ./gradlew build
 ```
 
-3. Run on a device or emulator:
+4. Run on a device or emulator:
 ```bash
 ./gradlew installDebug
 ```
@@ -132,7 +143,57 @@ cd ebook-reader-android
 - [ ] Night mode toggle
 - [ ] Font size adjustment
 - [ ] Reading statistics
-- [ ] Cloud sync support
+- [x] Cloud sync support
+
+## Cloud Sync
+
+The app includes cloud sync functionality to synchronize reading progress, bookmarks, and annotations across multiple devices.
+
+### Features
+
+- **Firebase Integration**: Uses Firebase Firestore for cloud storage and Firebase Auth for user authentication
+- **Anonymous Authentication**: Automatically signs in users anonymously for seamless sync
+- **Automatic Sync**: Syncs reading progress and bookmarks automatically when changes are made
+- **Manual Sync**: Trigger sync manually from the main menu or settings
+- **Conflict Resolution**: Uses last-write-wins strategy based on timestamps
+- **Offline Support**: Queues changes when offline and syncs when connection is restored
+- **Background Sync**: Optional periodic background sync using WorkManager
+
+### Setup Instructions
+
+#### For Development/Testing
+
+1. The app includes a placeholder `google-services.json` file for building
+2. To enable actual sync functionality:
+   - Create a Firebase project at [Firebase Console](https://console.firebase.google.com/)
+   - Add an Android app with package name: `com.rifters.ebookreader`
+   - Download your `google-services.json` file
+   - Replace the placeholder file in `app/` directory
+   - Enable Firestore and Authentication (Anonymous) in Firebase Console
+
+#### For End Users
+
+1. Open the app and go to **Settings**
+2. Navigate to **Cloud Sync** section
+3. Enable **Cloud Sync** toggle
+4. The app will automatically authenticate anonymously
+5. Enable **Auto Sync** to sync changes automatically
+6. Use **Sync Now** button to manually trigger sync
+
+### Data Synced
+
+- **Reading Progress**: Current page, progress percentage, completion status
+- **Bookmarks**: Page number, position, notes, and timestamps
+- **Last Opened**: When each book was last read
+
+**Note**: Book files themselves are NOT synced (only metadata). Books must be added to each device individually.
+
+### Privacy
+
+- Uses Firebase Anonymous Authentication (no personal information required)
+- Only syncs reading progress and bookmarks, not book content
+- Each user gets a unique anonymous ID
+- Data is stored in user-specific Firestore collections
 
 ## Supported File Formats
 
@@ -162,3 +223,4 @@ rifters
 
 - [Apache Commons Compress](https://commons.apache.org/proper/commons-compress/) for ZIP handling
 - [junrar](https://github.com/junrar/junrar) for RAR extraction
+- [Firebase](https://firebase.google.com/) for cloud sync infrastructure

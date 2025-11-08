@@ -90,4 +90,12 @@
     <string name="manage_collections">Manage Collections</string>
     <string name="select_collections">Select Collections</string>
     <string name="collection_name_required">Collection name is required</string>
+    
+    <!-- Sync -->
+    <string name="sync">Sync</string>
+    <string name="syncing">Syncing…</string>
+    <string name="sync_complete">Sync complete</string>
+    <string name="sync_failed">Sync failed</string>
+    <string name="sync_disabled">Cloud sync is disabled. Enable it in Settings.</string>
+    <string name="pending_sync">%1$d items pending sync</string>
 </resources>

@@ -143,4 +143,8 @@
     <string name="filter_completed">Completed</string>
     <string name="filter_not_completed">Not Completed</string>
     <string name="clear_search">Clear Search</string>
+    
+    <!-- Navigation -->
+    <string name="library">Library</string>
+    <string name="app_settings">App Settings</string>
 </resources>

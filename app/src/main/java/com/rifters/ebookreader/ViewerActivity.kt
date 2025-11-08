@@ -103,6 +103,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         
         binding.toolbar.setNavigationOnClickListener {
+            // Save current reading position before navigating back
+            currentBook?.let { book ->
+                bookViewModel.updateProgress(book.id, currentPage, currentProgressPercent)
+            }
             finish()
         }
     }
@@ -115,6 +119,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_library -> {
+                navigateToLibrary()
+                true
+            }
             R.id.action_view_bookmarks -> {
                 showBookmarks()
                 true
@@ -129,6 +137,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
             R.id.action_customize_reading -> {
                 showReadingSettings()
+                true
+            }
+            R.id.action_app_settings -> {
+                navigateToSettings()
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -1229,6 +1241,24 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             applyReadingPreferences(preferences)
         }
         bottomSheet.show(supportFragmentManager, ReadingSettingsBottomSheet.TAG)
+    }
+    
+    private fun navigateToLibrary() {
+        // Save current reading position before navigating away
+        currentBook?.let { book ->
+            bookViewModel.updateProgress(book.id, currentPage, currentProgressPercent)
+        }
+        
+        // Use NavUtils for proper up navigation to parent activity
+        val upIntent = android.content.Intent(this, MainActivity::class.java)
+        upIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        startActivity(upIntent)
+        finish()
+    }
+    
+    private fun navigateToSettings() {
+        val intent = android.content.Intent(this, SettingsActivity::class.java)
+        startActivity(intent)
     }
     
     private fun applyThemeToUI(preferences: ReadingPreferences) {

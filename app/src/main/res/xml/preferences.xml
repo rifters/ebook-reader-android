@@ -49,6 +49,37 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        android:title="Cloud Sync"
+        android:key="sync_category">
+
+        <SwitchPreferenceCompat
+            android:key="sync_enabled"
+            android:title="Enable Cloud Sync"
+            android:summary="Sync reading progress and bookmarks across devices"
+            android:defaultValue="false" />
+
+        <SwitchPreferenceCompat
+            android:key="auto_sync"
+            android:title="Auto Sync"
+            android:summary="Automatically sync when changes are made"
+            android:defaultValue="true"
+            android:dependency="sync_enabled" />
+
+        <Preference
+            android:key="manual_sync"
+            android:title="Sync Now"
+            android:summary="Manually sync all data"
+            android:dependency="sync_enabled" />
+
+        <Preference
+            android:key="last_sync"
+            android:title="Last Sync"
+            android:summary="Never"
+            android:dependency="sync_enabled" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:title="Storage"
         android:key="storage_category">
 

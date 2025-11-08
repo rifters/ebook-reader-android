@@ -12,9 +12,12 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.google.android.material.snackbar.Snackbar
 import com.rifters.ebookreader.databinding.ActivityMainBinding
+import com.rifters.ebookreader.util.PreferencesManager
 import com.rifters.ebookreader.viewmodel.BookViewModel
 import com.rifters.ebookreader.viewmodel.CollectionViewModel
+import com.rifters.ebookreader.viewmodel.SyncViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -26,7 +29,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var bookViewModel: BookViewModel
     private lateinit var collectionViewModel: CollectionViewModel
+    private lateinit var syncViewModel: SyncViewModel
     private lateinit var bookAdapter: BookAdapter
+    private lateinit var prefsManager: PreferencesManager
+    private var syncMenuItem: MenuItem? = null
     
     private val filePickerLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
@@ -39,10 +45,13 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
+        prefsManager = PreferencesManager(this)
+        
         setupToolbar()
         setupRecyclerView()
         setupViewModel()
         setupFab()
+        setupSyncObservers()
     }
     
     private fun setupToolbar() {
@@ -69,9 +78,42 @@ class MainActivity : AppCompatActivity() {
     private fun setupViewModel() {
         bookViewModel = ViewModelProvider(this)[BookViewModel::class.java]
         collectionViewModel = ViewModelProvider(this)[CollectionViewModel::class.java]
+        syncViewModel = ViewModelProvider(this)[SyncViewModel::class.java]
         
         bookViewModel.allBooks.observe(this) { books ->
             bookAdapter.submitList(books)
+        }
+    }
+    
+    private fun setupSyncObservers() {
+        // Observe sync status
+        syncViewModel.syncStatus.observe(this) { status ->
+            when (status) {
+                is SyncViewModel.SyncStatus.InProgress -> {
+                    showSyncSnackbar(status.message)
+                }
+                is SyncViewModel.SyncStatus.Success -> {
+                    showSyncSnackbar(status.message)
+                }
+                is SyncViewModel.SyncStatus.Error -> {
+                    showSyncSnackbar(status.message)
+                }
+                is SyncViewModel.SyncStatus.PartialSuccess -> {
+                    showSyncSnackbar(status.message)
+                }
+                else -> {}
+            }
+        }
+        
+        // Observe pending sync count to update menu icon
+        syncViewModel.pendingSyncCount.observe(this) { count ->
+            syncMenuItem?.let { menuItem ->
+                if (count > 0 && prefsManager.isSyncEnabled()) {
+                    menuItem.title = getString(R.string.pending_sync, count)
+                } else {
+                    menuItem.title = getString(R.string.sync)
+                }
+            }
         }
     }
     
@@ -178,11 +220,20 @@ class MainActivity : AppCompatActivity() {
     
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
+        syncMenuItem = menu.findItem(R.id.action_sync)
+        
+        // Update sync menu visibility based on sync enabled status
+        syncMenuItem?.isVisible = prefsManager.isSyncEnabled()
+        
         return true
     }
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            R.id.action_sync -> {
+                handleSyncAction()
+                true
+            }
             R.id.action_collections -> {
                 val intent = Intent(this, CollectionsActivity::class.java)
                 startActivity(intent)
@@ -205,6 +256,26 @@ class MainActivity : AppCompatActivity() {
             }
             else -> super.onOptionsItemSelected(item)
         }
+    }
+    
+    private fun handleSyncAction() {
+        if (!prefsManager.isSyncEnabled()) {
+            showSyncSnackbar(getString(R.string.sync_disabled))
+            return
+        }
+        
+        // Perform full sync
+        syncViewModel.fullSync()
+    }
+    
+    private fun showSyncSnackbar(message: String) {
+        Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT).show()
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        // Update sync menu visibility when returning from settings
+        invalidateOptionsMenu()
     }
     
     private fun showAddToCollectionDialog(book: Book) {

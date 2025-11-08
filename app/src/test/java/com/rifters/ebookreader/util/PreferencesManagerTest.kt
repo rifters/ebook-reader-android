@@ -33,6 +33,8 @@ class PreferencesManagerTest {
         `when`(editor.putString(anyString(), anyString())).thenReturn(editor)
         `when`(editor.putFloat(anyString(), anyFloat())).thenReturn(editor)
         `when`(editor.putInt(anyString(), anyInt())).thenReturn(editor)
+        `when`(editor.putBoolean(anyString(), anyBoolean())).thenReturn(editor)
+        `when`(editor.putLong(anyString(), anyLong())).thenReturn(editor)
         
         preferencesManager = PreferencesManager(context)
     }
@@ -103,5 +105,76 @@ class PreferencesManagerTest {
         
         // Should fall back to LIGHT theme
         assertEquals(ReadingTheme.LIGHT, preferences.theme)
+    }
+    
+    @Test
+    fun `set sync enabled stores value`() {
+        preferencesManager.setSyncEnabled(true)
+        
+        verify(editor).putBoolean("sync_enabled", true)
+        verify(editor).apply()
+    }
+    
+    @Test
+    fun `is sync enabled returns default false`() {
+        `when`(sharedPreferences.getBoolean("sync_enabled", false)).thenReturn(false)
+        
+        val enabled = preferencesManager.isSyncEnabled()
+        
+        assertFalse(enabled)
+    }
+    
+    @Test
+    fun `is sync enabled returns stored value`() {
+        `when`(sharedPreferences.getBoolean("sync_enabled", false)).thenReturn(true)
+        
+        val enabled = preferencesManager.isSyncEnabled()
+        
+        assertTrue(enabled)
+    }
+    
+    @Test
+    fun `set auto sync enabled stores value`() {
+        preferencesManager.setAutoSyncEnabled(false)
+        
+        verify(editor).putBoolean("auto_sync", false)
+        verify(editor).apply()
+    }
+    
+    @Test
+    fun `is auto sync enabled returns default true`() {
+        `when`(sharedPreferences.getBoolean("auto_sync", true)).thenReturn(true)
+        
+        val enabled = preferencesManager.isAutoSyncEnabled()
+        
+        assertTrue(enabled)
+    }
+    
+    @Test
+    fun `set last sync timestamp stores value`() {
+        val timestamp = 123456789L
+        preferencesManager.setLastSyncTimestamp(timestamp)
+        
+        verify(editor).putLong("last_sync_timestamp", timestamp)
+        verify(editor).apply()
+    }
+    
+    @Test
+    fun `get last sync timestamp returns default zero`() {
+        `when`(sharedPreferences.getLong("last_sync_timestamp", 0L)).thenReturn(0L)
+        
+        val timestamp = preferencesManager.getLastSyncTimestamp()
+        
+        assertEquals(0L, timestamp)
+    }
+    
+    @Test
+    fun `get last sync timestamp returns stored value`() {
+        val timestamp = 987654321L
+        `when`(sharedPreferences.getLong("last_sync_timestamp", 0L)).thenReturn(timestamp)
+        
+        val result = preferencesManager.getLastSyncTimestamp()
+        
+        assertEquals(timestamp, result)
     }
 }

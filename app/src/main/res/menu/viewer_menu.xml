@@ -8,4 +8,10 @@
         android:title="@string/tts_play"
         app:showAsAction="ifRoom" />
 
+    <item
+        android:id="@+id/action_customize_reading"
+        android:icon="@android:drawable/ic_menu_preferences"
+        android:title="@string/customize_reading"
+        app:showAsAction="ifRoom" />
+
 </menu>

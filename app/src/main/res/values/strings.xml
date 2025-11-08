@@ -48,4 +48,19 @@
     <string name="bookmark_removed">Bookmark removed</string>
     <string name="no_bookmarks">No bookmarks yet</string>
     <string name="pdf_page_content_description">PDF page content</string>
+    
+    <!-- Reading Settings -->
+    <string name="reading_settings">Reading Settings</string>
+    <string name="font_family">Font Family</string>
+    <string name="font_sans_serif">Sans Serif</string>
+    <string name="font_serif">Serif</string>
+    <string name="font_monospace">Monospace</string>
+    <string name="theme">Theme</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_sepia">Sepia</string>
+    <string name="line_spacing">Line Spacing</string>
+    <string name="margins">Margins</string>
+    <string name="apply_settings">Apply</string>
+    <string name="customize_reading">Customize Reading</string>
 </resources>

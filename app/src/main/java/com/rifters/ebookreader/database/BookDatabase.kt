@@ -10,10 +10,27 @@ import com.rifters.ebookreader.model.BookCollectionCrossRef
 import com.rifters.ebookreader.model.Collection
 import com.rifters.ebookreader.model.SyncStatus
 import com.rifters.ebookreader.model.Highlight
+import com.rifters.ebookreader.model.Tag
+import com.rifters.ebookreader.model.BookTagCrossRef
+import com.rifters.ebookreader.model.ReadingGoal
+import com.rifters.ebookreader.model.ReadingList
+import com.rifters.ebookreader.model.ReadingListItem
 
 @Database(
-    entities = [Book::class, Bookmark::class, Collection::class, BookCollectionCrossRef::class, SyncStatus::class, Highlight::class], 
-    version = 5, 
+    entities = [
+        Book::class, 
+        Bookmark::class, 
+        Collection::class, 
+        BookCollectionCrossRef::class, 
+        SyncStatus::class, 
+        Highlight::class,
+        Tag::class,
+        BookTagCrossRef::class,
+        ReadingGoal::class,
+        ReadingList::class,
+        ReadingListItem::class
+    ], 
+    version = 6, 
     exportSchema = false
 )
 abstract class BookDatabase : RoomDatabase() {
@@ -23,6 +40,9 @@ abstract class BookDatabase : RoomDatabase() {
     abstract fun collectionDao(): CollectionDao
     abstract fun syncDao(): SyncDao
     abstract fun highlightDao(): HighlightDao
+    abstract fun tagDao(): TagDao
+    abstract fun readingGoalDao(): ReadingGoalDao
+    abstract fun readingListDao(): ReadingListDao
     
     companion object {
         @Volatile

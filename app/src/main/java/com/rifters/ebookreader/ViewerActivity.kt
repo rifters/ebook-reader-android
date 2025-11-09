@@ -299,6 +299,15 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     }
                     loadMobi(file)
                 }
+                "fb2" -> {
+                    loadFb2(file)
+                }
+                "md" -> {
+                    loadMarkdown(file)
+                }
+                "html", "htm", "xhtml", "xml", "mhtml" -> {
+                    loadHtml(file)
+                }
                 "cbz" -> {
                     if (!FileValidator.validateCbzFile(file)) {
                         withContext(Dispatchers.Main) {
@@ -1039,6 +1048,99 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // Apply reading preferences
             val preferences = preferencesManager.getReadingPreferences()
             applyReadingPreferences(preferences)
+        }
+    }
+    
+    private suspend fun loadFb2(file: File) {
+        val fb2Content = withContext(Dispatchers.IO) {
+            com.rifters.ebookreader.util.Fb2Parser.parse(file)
+        }
+        
+        if (fb2Content == null) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(
+                    this@ViewerActivity,
+                    "Error loading FB2 file",
+                    Toast.LENGTH_LONG
+                ).show()
+                finish()
+            }
+            return
+        }
+        
+        withContext(Dispatchers.Main) {
+            binding.apply {
+                loadingProgressBar.visibility = View.GONE
+                pdfImageView.visibility = View.GONE
+                webView.visibility = View.VISIBLE
+                scrollView.visibility = View.GONE
+                textView.visibility = View.GONE
+                
+                webView.loadDataWithBaseURL(null, fb2Content.htmlContent, "text/html", "UTF-8", null)
+                currentTextContent = fb2Content.htmlContent
+            }
+            
+            // Update book metadata if available
+            currentBook?.let { book ->
+                val updatedBook = book.copy(
+                    genre = fb2Content.metadata.genre ?: book.genre,
+                    publisher = fb2Content.metadata.publisher ?: book.publisher,
+                    publishedYear = fb2Content.metadata.publishYear?.toIntOrNull() ?: book.publishedYear,
+                    language = fb2Content.metadata.language ?: book.language,
+                    isbn = fb2Content.metadata.isbn ?: book.isbn
+                )
+                bookViewModel.updateBook(updatedBook)
+            }
+            
+            val preferences = preferencesManager.getReadingPreferences()
+            applyThemeToUI(preferences)
+            applyWebViewStyles(preferences)
+        }
+    }
+    
+    private suspend fun loadMarkdown(file: File) {
+        val htmlContent = withContext(Dispatchers.IO) {
+            com.rifters.ebookreader.util.MarkdownParser.parseToHtml(file)
+        }
+        
+        withContext(Dispatchers.Main) {
+            binding.apply {
+                loadingProgressBar.visibility = View.GONE
+                pdfImageView.visibility = View.GONE
+                webView.visibility = View.VISIBLE
+                scrollView.visibility = View.GONE
+                textView.visibility = View.GONE
+                
+                webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
+                currentTextContent = htmlContent
+            }
+            
+            val preferences = preferencesManager.getReadingPreferences()
+            applyThemeToUI(preferences)
+            applyWebViewStyles(preferences)
+        }
+    }
+    
+    private suspend fun loadHtml(file: File) {
+        val htmlContent = withContext(Dispatchers.IO) {
+            file.readText(Charsets.UTF_8)
+        }
+        
+        withContext(Dispatchers.Main) {
+            binding.apply {
+                loadingProgressBar.visibility = View.GONE
+                pdfImageView.visibility = View.GONE
+                webView.visibility = View.VISIBLE
+                scrollView.visibility = View.GONE
+                textView.visibility = View.GONE
+                
+                webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
+                currentTextContent = htmlContent
+            }
+            
+            val preferences = preferencesManager.getReadingPreferences()
+            applyThemeToUI(preferences)
+            applyWebViewStyles(preferences)
         }
     }
     

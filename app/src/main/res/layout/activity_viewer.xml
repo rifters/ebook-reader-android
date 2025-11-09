@@ -118,6 +118,21 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1" />
+            
+            <ImageButton
+                android:id="@+id/btnTtsPlay"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="@drawable/ripple_circular"
+                android:contentDescription="@string/tts_play"
+                android:padding="12dp"
+                android:src="@android:drawable/ic_media_play"
+                app:tint="?attr/colorOnSurface" />
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
 
             <ImageButton
                 android:id="@+id/btnBookmark"

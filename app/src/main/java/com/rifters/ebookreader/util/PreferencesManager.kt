@@ -80,6 +80,23 @@ class PreferencesManager(context: Context) {
         return prefs.getBoolean(KEY_NIGHT_MODE, false)
     }
     
+    // TTS preferences
+    fun setTtsRate(rate: Float) {
+        prefs.edit().putFloat(KEY_TTS_RATE, rate).apply()
+    }
+    
+    fun getTtsRate(): Float {
+        return prefs.getFloat(KEY_TTS_RATE, 1.0f)
+    }
+    
+    fun setTtsPitch(pitch: Float) {
+        prefs.edit().putFloat(KEY_TTS_PITCH, pitch).apply()
+    }
+    
+    fun getTtsPitch(): Float {
+        return prefs.getFloat(KEY_TTS_PITCH, 1.0f)
+    }
+    
     companion object {
         private const val PREFS_NAME = "reading_preferences"
         private const val KEY_FONT_FAMILY = "font_family"
@@ -92,5 +109,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_AUTO_SYNC = "auto_sync"
         private const val KEY_LAST_SYNC = "last_sync_timestamp"
         private const val KEY_NIGHT_MODE = "night_mode_enabled"
+        private const val KEY_TTS_RATE = "tts_rate"
+        private const val KEY_TTS_PITCH = "tts_pitch"
     }
 }

@@ -308,6 +308,12 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 "html", "htm", "xhtml", "xml", "mhtml" -> {
                     loadHtml(file)
                 }
+                "azw", "azw3" -> {
+                    loadAzw(file)
+                }
+                "docx" -> {
+                    loadDocx(file)
+                }
                 "cbz" -> {
                     if (!FileValidator.validateCbzFile(file)) {
                         withContext(Dispatchers.Main) {
@@ -324,6 +330,12 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
                 "cbr" -> {
                     loadCbr(file)
+                }
+                "cb7" -> {
+                    loadCb7(file)
+                }
+                "cbt" -> {
+                    loadCbt(file)
                 }
                 "txt" -> {
                     loadText(file)
@@ -1141,6 +1153,230 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val preferences = preferencesManager.getReadingPreferences()
             applyThemeToUI(preferences)
             applyWebViewStyles(preferences)
+        }
+    }
+    
+    private suspend fun loadAzw(file: File) {
+        val azwContent = withContext(Dispatchers.IO) {
+            com.rifters.ebookreader.util.AzwParser.parse(file)
+        }
+        
+        if (azwContent == null) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(
+                    this@ViewerActivity,
+                    "Error loading AZW/AZW3 file",
+                    Toast.LENGTH_LONG
+                ).show()
+                finish()
+            }
+            return
+        }
+        
+        withContext(Dispatchers.Main) {
+            binding.apply {
+                loadingProgressBar.visibility = View.GONE
+                pdfImageView.visibility = View.GONE
+                webView.visibility = View.GONE
+                scrollView.visibility = View.VISIBLE
+                textView.visibility = View.VISIBLE
+                
+                textView.text = azwContent.content
+                currentTextContent = azwContent.content
+            }
+            
+            val preferences = preferencesManager.getReadingPreferences()
+            applyReadingPreferences(preferences)
+        }
+    }
+    
+    private suspend fun loadDocx(file: File) {
+        val docxContent = withContext(Dispatchers.IO) {
+            com.rifters.ebookreader.util.DocxParser.parse(file)
+        }
+        
+        if (docxContent == null) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(
+                    this@ViewerActivity,
+                    "Error loading DOCX file",
+                    Toast.LENGTH_LONG
+                ).show()
+                finish()
+            }
+            return
+        }
+        
+        withContext(Dispatchers.Main) {
+            binding.apply {
+                loadingProgressBar.visibility = View.GONE
+                pdfImageView.visibility = View.GONE
+                webView.visibility = View.VISIBLE
+                scrollView.visibility = View.GONE
+                textView.visibility = View.GONE
+                
+                webView.loadDataWithBaseURL(null, docxContent.htmlContent, "text/html", "UTF-8", null)
+                currentTextContent = docxContent.htmlContent
+            }
+            
+            // Update book metadata if available
+            currentBook?.let { book ->
+                val updatedBook = book.copy(
+                    author = docxContent.metadata.author ?: book.author,
+                    publisher = docxContent.metadata.subject ?: book.publisher
+                )
+                bookViewModel.updateBook(updatedBook)
+            }
+            
+            val preferences = preferencesManager.getReadingPreferences()
+            applyThemeToUI(preferences)
+            applyWebViewStyles(preferences)
+        }
+    }
+    
+    private suspend fun loadCb7(file: File) {
+        withContext(Dispatchers.IO) {
+            try {
+                comicImages.clear()
+                
+                // Use Apache Commons Compress for 7z support
+                val sevenZFile = org.apache.commons.compress.archivers.sevenz.SevenZFile(file)
+                val imageList = mutableListOf<Bitmap>()
+                
+                var entry = sevenZFile.nextEntry
+                while (entry != null) {
+                    if (!entry.isDirectory) {
+                        val fileName = entry.name.lowercase()
+                        if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") || 
+                            fileName.endsWith(".png") || fileName.endsWith(".gif") || 
+                            fileName.endsWith(".bmp") || fileName.endsWith(".webp")) {
+                            
+                            val content = ByteArray(entry.size.toInt())
+                            sevenZFile.read(content)
+                            
+                            val bitmap = BitmapFactory.decodeByteArray(content, 0, content.size)
+                            if (bitmap != null) {
+                                imageList.add(bitmap)
+                            }
+                        }
+                    }
+                    entry = sevenZFile.nextEntry
+                }
+                
+                sevenZFile.close()
+                
+                if (imageList.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        binding.loadingProgressBar.visibility = View.GONE
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            "No images found in CB7 file",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        finish()
+                    }
+                    return@withContext
+                }
+                
+                comicImages.addAll(imageList)
+                totalComicPages = comicImages.size
+                
+                withContext(Dispatchers.Main) {
+                    binding.apply {
+                        loadingProgressBar.visibility = View.GONE
+                        pdfImageView.visibility = View.VISIBLE
+                        webView.visibility = View.GONE
+                        scrollView.visibility = View.GONE
+                        textView.visibility = View.GONE
+                    }
+                    renderComicPage(currentPage)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    binding.loadingProgressBar.visibility = View.GONE
+                    Toast.makeText(
+                        this@ViewerActivity,
+                        "Error loading CB7 file: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    finish()
+                }
+            }
+        }
+    }
+    
+    private suspend fun loadCbt(file: File) {
+        withContext(Dispatchers.IO) {
+            try {
+                comicImages.clear()
+                
+                // Use Apache Commons Compress for TAR support
+                val tarInput = org.apache.commons.compress.archivers.tar.TarArchiveInputStream(
+                    java.io.FileInputStream(file)
+                )
+                val imageList = mutableListOf<Bitmap>()
+                
+                var entry = tarInput.nextTarEntry
+                while (entry != null) {
+                    if (!entry.isDirectory) {
+                        val fileName = entry.name.lowercase()
+                        if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") || 
+                            fileName.endsWith(".png") || fileName.endsWith(".gif") || 
+                            fileName.endsWith(".bmp") || fileName.endsWith(".webp")) {
+                            
+                            val content = ByteArray(entry.size.toInt())
+                            tarInput.read(content)
+                            
+                            val bitmap = BitmapFactory.decodeByteArray(content, 0, content.size)
+                            if (bitmap != null) {
+                                imageList.add(bitmap)
+                            }
+                        }
+                    }
+                    entry = tarInput.nextTarEntry
+                }
+                
+                tarInput.close()
+                
+                if (imageList.isEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        binding.loadingProgressBar.visibility = View.GONE
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            "No images found in CBT file",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        finish()
+                    }
+                    return@withContext
+                }
+                
+                comicImages.addAll(imageList)
+                totalComicPages = comicImages.size
+                
+                withContext(Dispatchers.Main) {
+                    binding.apply {
+                        loadingProgressBar.visibility = View.GONE
+                        pdfImageView.visibility = View.VISIBLE
+                        webView.visibility = View.GONE
+                        scrollView.visibility = View.GONE
+                        textView.visibility = View.GONE
+                    }
+                    renderComicPage(currentPage)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    binding.loadingProgressBar.visibility = View.GONE
+                    Toast.makeText(
+                        this@ViewerActivity,
+                        "Error loading CBT file: ${e.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    finish()
+                }
+            }
         }
     }
     

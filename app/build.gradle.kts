@@ -82,9 +82,10 @@ dependencies {
     // MOBI support - basic PalmDB format reading (no external library needed)
     // Using custom implementation for basic MOBI reading
     
-    // CBZ/CBR support - comic book archives
-    implementation("org.apache.commons:commons-compress:1.25.0") // For CBZ (ZIP)
+    // CBZ/CBR/CB7/CBT support - comic book archives
+    implementation("org.apache.commons:commons-compress:1.25.0") // For CBZ (ZIP), CB7 (7z), CBT (TAR)
     implementation("com.github.junrar:junrar:7.5.5") // For CBR (RAR)
+    implementation("org.tukaani:xz:1.9") // For 7z decompression support
     
     // File picker for document selection
     implementation("androidx.activity:activity-ktx:1.8.1")

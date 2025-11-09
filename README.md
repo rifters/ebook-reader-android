@@ -4,7 +4,7 @@ A modern Android e-book reader application built with Kotlin, supporting PDF, EP
 
 ## Features
 
-- 📚 **Multi-format Support** - PDF, EPUB, MOBI, TXT, CBZ, CBR, FB2, Markdown, HTML/XML
+- 📚 **Multi-format Support** - PDF, EPUB, MOBI, TXT, CBZ, CBR, FB2, Markdown, HTML/XML, AZW/AZW3, DOCX, CB7, CBT
 - 💾 **Local Database** - Room database for efficient storage
 - 📊 **Progress Tracking** - Automatic reading progress and completion tracking
 - 🎨 **Material Design 3 UI** - Modern, polished interface with purple theme
@@ -19,6 +19,7 @@ A modern Android e-book reader application built with Kotlin, supporting PDF, EP
 - 🤖 **Smart Collections** - Auto-organize by author, genre, year, status
 - 🔍 **Duplicate Detection** - Find and identify duplicate books
 - ☁️ **Cloud Sync** - Sync reading progress across devices with Firebase
+- ☁️ **Cloud Storage** - WebDAV support for importing books from cloud servers
 - 🗣️ **Text-to-Speech** - Listen to books with TTS engine
 - 📖 **Table of Contents** - Navigate chapters easily in EPUB books
 - 📖 **Reading Modes** - Single-column, two-column, or continuous scroll layouts
@@ -383,13 +384,50 @@ The app includes cloud sync functionality to synchronize reading progress, bookm
 - Each user gets a unique anonymous ID
 - Data is stored in user-specific Firestore collections
 
+## Cloud Storage Integration
+
+The app now includes a cloud storage framework for importing books from cloud servers and personal storage.
+
+### Supported Providers
+
+#### Currently Implemented
+- **WebDAV** - Generic WebDAV protocol support
+  - Works with Nextcloud, ownCloud, and other WebDAV-compatible servers
+  - Supports browsing, downloading, and uploading files
+  - Basic authentication with username/password
+
+#### Planned Providers
+- **Google Drive** - Official Google Drive API integration
+- **OneDrive** - Microsoft OneDrive support
+- **Dropbox** - Dropbox API integration
+- **FTP/SFTP** - File transfer protocol support
+
+### Features
+
+- **Multi-Provider Support** - Connect to multiple cloud storage providers
+- **Browse & Download** - List and download books from cloud storage
+- **Upload Books** - Backup your books to cloud storage
+- **WebDAV Support** - Connect to self-hosted or enterprise storage
+- **Extensible Architecture** - Easy to add new cloud providers
+
+### Usage
+
+1. Configure your cloud storage provider (e.g., WebDAV server URL and credentials)
+2. Browse available files in your cloud storage
+3. Download books directly to your local library
+4. Upload books from your device to cloud storage for backup
+
+**Note**: Cloud storage integration is in beta. More providers will be added based on user feedback.
+
 ### Supported File Formats
 
 #### E-Books
 - **PDF** - Portable Document Format (using Android PdfRenderer)
 - **EPUB** - Electronic Publication (custom HTML extraction)
 - **MOBI** - Mobipocket format (basic text extraction)
+- **AZW/AZW3** - Kindle formats (DRM-free) with PalmDB decompression
 - **FB2** - FictionBook 2 format (XML-based with metadata extraction)
+- **DOCX** - Microsoft Word documents (ZIP-based XML parsing)
 - **TXT** - Plain text files
 - **Markdown** - Markdown files (.md) with full rendering
 - **HTML/XML** - Web formats (.html, .htm, .xhtml, .xml, .mhtml)
@@ -397,6 +435,8 @@ The app includes cloud sync functionality to synchronize reading progress, bookm
 #### Comic Books
 - **CBZ** - Comic Book ZIP archive
 - **CBR** - Comic Book RAR archive
+- **CB7** - Comic Book 7z archive
+- **CBT** - Comic Book TAR archive
 
 ## Contributing
 

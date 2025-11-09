@@ -101,10 +101,66 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                               result != TextToSpeech.LANG_NOT_SUPPORTED
             if (!isTtsInitialized) {
                 Toast.makeText(this, "TTS language not supported", Toast.LENGTH_SHORT).show()
+            } else {
+                // Set up utterance progress listener for text highlighting
+                textToSpeech?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {
+                        runOnUiThread {
+                            // TTS started speaking
+                        }
+                    }
+                    
+                    override fun onDone(utteranceId: String?) {
+                        runOnUiThread {
+                            isTtsPlaying = false
+                            updateTtsButtons()
+                        }
+                    }
+                    
+                    override fun onError(utteranceId: String?) {
+                        runOnUiThread {
+                            isTtsPlaying = false
+                            updateTtsButtons()
+                            Toast.makeText(this@ViewerActivity, "TTS error occurred", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    
+                    override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+                        // This method is called when TTS starts speaking a range of text
+                        // We can use this to highlight the currently spoken text
+                        runOnUiThread {
+                            highlightSpokenText(start, end)
+                        }
+                    }
+                })
             }
         } else {
             Toast.makeText(this, "TTS initialization failed", Toast.LENGTH_SHORT).show()
         }
+    }
+    
+    private fun highlightSpokenText(start: Int, end: Int) {
+        // For WebView content (EPUB), inject JavaScript to highlight the text
+        if (binding.webView.visibility == View.VISIBLE) {
+            binding.webView.evaluateJavascript(
+                """
+                (function() {
+                    // Remove previous highlights
+                    var oldHighlight = document.getElementById('tts-highlight');
+                    if (oldHighlight) {
+                        oldHighlight.remove();
+                    }
+                    
+                    // This is a simplified implementation
+                    // A full implementation would require tracking text positions
+                    // and selecting the appropriate text range
+                })();
+                """.trimIndent(),
+                null
+            )
+        }
+        // For TextView content (TXT), we can use SpannableString to highlight
+        // This would require more complex implementation
     }
     
     private fun setupToolbar() {
@@ -174,22 +230,61 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         } else {
             playTTS()
         }
+        updateTtsButtons()
+    }
+    
+    private fun updateTtsButtons() {
+        // Update menu icon
         invalidateOptionsMenu()
+        
+        // Update bottom bar button
+        if (isTtsPlaying) {
+            binding.btnTtsPlay.setImageResource(android.R.drawable.ic_media_pause)
+        } else {
+            binding.btnTtsPlay.setImageResource(android.R.drawable.ic_media_play)
+        }
     }
     
     private fun playTTS() {
-        if (currentTextContent.isNotEmpty()) {
-            textToSpeech?.speak(currentTextContent, TextToSpeech.QUEUE_FLUSH, null, "tts_id")
+        if (currentTextContent.isEmpty()) {
+            Toast.makeText(this, "No text content to read", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // Extract plain text from HTML if needed
+        val textToSpeak = if (currentTextContent.contains("<")) {
+            // It's HTML content, extract text
+            android.text.Html.fromHtml(currentTextContent, android.text.Html.FROM_HTML_MODE_LEGACY).toString()
+        } else {
+            currentTextContent
+        }
+        
+        if (textToSpeak.trim().isEmpty()) {
+            Toast.makeText(this, "No text content to read", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // Get TTS settings from preferences
+        val ttsRate = preferencesManager.getTtsRate()
+        val ttsPitch = preferencesManager.getTtsPitch()
+        
+        textToSpeech?.setSpeechRate(ttsRate)
+        textToSpeech?.setPitch(ttsPitch)
+        
+        val result = textToSpeech?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, null, "tts_id")
+        
+        if (result == TextToSpeech.SUCCESS) {
             isTtsPlaying = true
             Toast.makeText(this, "TTS started", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(this, "No text content to read", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "TTS failed to start", Toast.LENGTH_SHORT).show()
         }
     }
     
     private fun pauseTTS() {
         textToSpeech?.stop()
         isTtsPlaying = false
+        updateTtsButtons()
         Toast.makeText(this, "TTS stopped", Toast.LENGTH_SHORT).show()
     }
     
@@ -204,6 +299,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         
         binding.btnBookmark.setOnClickListener {
             bookmarkCurrentPage()
+        }
+        
+        binding.btnTtsPlay.setOnClickListener {
+            toggleTTS()
         }
     }
     
@@ -1396,7 +1495,34 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             
             currentProgressPercent = progress
             bookViewModel.updateProgress(book.id, boundedPage, progress)
+            
+            // Update page indicator
+            updatePageIndicator(boundedPage + 1, totalPages)
         }
+    }
+    
+    private fun updatePageIndicator(currentPage: Int, totalPages: Int) {
+        if (totalPages > 0) {
+            binding.pageIndicator.visibility = View.VISIBLE
+            binding.pageIndicator.text = getString(R.string.page_indicator, currentPage, totalPages)
+            
+            // Auto-hide after 2 seconds
+            binding.pageIndicator.removeCallbacks(hidePageIndicatorRunnable)
+            binding.pageIndicator.postDelayed(hidePageIndicatorRunnable, 2000)
+        } else {
+            binding.pageIndicator.visibility = View.GONE
+        }
+    }
+    
+    private val hidePageIndicatorRunnable = Runnable {
+        binding.pageIndicator.animate()
+            .alpha(0f)
+            .setDuration(300)
+            .withEndAction {
+                binding.pageIndicator.visibility = View.GONE
+                binding.pageIndicator.alpha = 1f
+            }
+            .start()
     }
     
     private fun previousPage() {
@@ -1707,6 +1833,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 background-color: transparent !important;
                 color: #E0E0E0 !important;
             }
+            p, div, span, h1, h2, h3, h4, h5, h6 {
+                color: #E0E0E0 !important;
+            }
             a {
                 color: #82B1FF !important;
             }
@@ -1715,13 +1844,14 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         binding.webView.evaluateJavascript(
             """
             (function() {
-                var style = document.getElementById('night-mode-style');
-                if (!style) {
-                    style = document.createElement('style');
-                    style.id = 'night-mode-style';
-                    document.head.appendChild(style);
+                var existingStyle = document.getElementById('night-mode-style');
+                if (existingStyle) {
+                    existingStyle.remove();
                 }
+                var style = document.createElement('style');
+                style.id = 'night-mode-style';
                 style.innerHTML = `$css`;
+                document.head.appendChild(style);
             })();
             """.trimIndent(),
             null
@@ -1803,27 +1933,33 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val textColor = String.format("#%06X", 0xFFFFFF and preferences.theme.textColor)
         
         val css = """
-            <style>
-                body {
-                    font-family: ${preferences.fontFamily};
-                    font-size: ${preferences.fontSize}px;
-                    line-height: ${preferences.lineSpacing};
-                    color: $textColor !important;
-                    background-color: $backgroundColor !important;
-                    padding: ${preferences.marginVertical}px ${preferences.marginHorizontal}px;
-                    margin: 0;
-                }
-                * {
-                    color: $textColor !important;
-                    background-color: transparent !important;
-                }
-            </style>
+            body {
+                font-family: ${preferences.fontFamily} !important;
+                font-size: ${preferences.fontSize}px !important;
+                line-height: ${preferences.lineSpacing} !important;
+                color: $textColor !important;
+                background-color: $backgroundColor !important;
+                padding: ${preferences.marginVertical}px ${preferences.marginHorizontal}px !important;
+                margin: 0 !important;
+            }
+            * {
+                color: $textColor !important;
+                background-color: transparent !important;
+            }
+            p, div, span, h1, h2, h3, h4, h5, h6 {
+                color: $textColor !important;
+            }
         """.trimIndent()
         
         binding.webView.evaluateJavascript(
             """
             (function() {
+                var existingStyle = document.getElementById('reading-preferences-style');
+                if (existingStyle) {
+                    existingStyle.remove();
+                }
                 var style = document.createElement('style');
+                style.id = 'reading-preferences-style';
                 style.innerHTML = `$css`;
                 document.head.appendChild(style);
             })();

@@ -66,6 +66,14 @@ class ReadingSettingsBottomSheet : BottomSheetDialogFragment() {
             binding.marginSlider.value = prefs.marginHorizontal.toFloat()
             binding.marginValue.text = "${prefs.marginHorizontal}dp"
         }
+        
+        // Set TTS settings
+        val ttsRate = preferencesManager.getTtsRate()
+        val ttsPitch = preferencesManager.getTtsPitch()
+        binding.ttsRateSlider.value = ttsRate
+        binding.ttsRateValue.text = String.format("%.1fx", ttsRate)
+        binding.ttsPitchSlider.value = ttsPitch
+        binding.ttsPitchValue.text = String.format("%.1fx", ttsPitch)
     }
     
     private fun setupListeners() {
@@ -82,6 +90,16 @@ class ReadingSettingsBottomSheet : BottomSheetDialogFragment() {
         // Margin slider
         binding.marginSlider.addOnChangeListener { _, value, _ ->
             binding.marginValue.text = "${value.toInt()}dp"
+        }
+        
+        // TTS rate slider
+        binding.ttsRateSlider.addOnChangeListener { _, value, _ ->
+            binding.ttsRateValue.text = String.format("%.1fx", value)
+        }
+        
+        // TTS pitch slider
+        binding.ttsPitchSlider.addOnChangeListener { _, value, _ ->
+            binding.ttsPitchValue.text = String.format("%.1fx", value)
         }
         
         // Apply button
@@ -117,7 +135,15 @@ class ReadingSettingsBottomSheet : BottomSheetDialogFragment() {
             marginVertical = margin
         )
         
+        // Save reading preferences
         preferencesManager.saveReadingPreferences(preferences)
+        
+        // Save TTS settings
+        val ttsRate = binding.ttsRateSlider.value
+        val ttsPitch = binding.ttsPitchSlider.value
+        preferencesManager.setTtsRate(ttsRate)
+        preferencesManager.setTtsPitch(ttsPitch)
+        
         onSettingsApplied?.invoke(preferences)
         dismiss()
     }

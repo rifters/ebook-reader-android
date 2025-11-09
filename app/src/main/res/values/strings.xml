@@ -94,10 +94,6 @@
     <string name="tts_settings">Text-to-Speech Settings</string>
     <string name="tts_rate">Speech Rate</string>
     <string name="tts_pitch">Speech Pitch</string>
-    <string name="night_mode_on">Night mode enabled</string>
-    <string name="night_mode_off">Night mode disabled</string>
-    <string name="no_table_of_contents">No table of contents available</string>
-    <string name="no_dictionary_app">No dictionary app available</string>
     
     <!-- Collections -->
     <string name="collections">Collections</string>

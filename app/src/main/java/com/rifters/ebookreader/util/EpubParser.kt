@@ -386,7 +386,16 @@ class EpubParser(private val epubFile: File) {
         val manifestItem = epubContent.manifest[spineItem.idref] ?: return null
         val href = epubContent.opfBasePath + manifestItem.href
         
-        return readFileFromZip(href)
+        // Reopen the ZIP file to read the chapter content
+        return try {
+            val zip = ZipFile(epubFile)
+            val content = readFileFromZip(zip, href)
+            zip.close()
+            content
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading chapter content", e)
+            null
+        }
     }
     
     /**
@@ -396,6 +405,20 @@ class EpubParser(private val epubFile: File) {
         try {
             val entry = zipFile?.getEntry(path) ?: return null
             val inputStream = zipFile?.getInputStream(entry) ?: return null
+            return inputStream.bufferedReader().use { it.readText() }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading file from ZIP: $path", e)
+            return null
+        }
+    }
+    
+    /**
+     * Read a file from a specific ZIP file instance
+     */
+    private fun readFileFromZip(zip: ZipFile, path: String): String? {
+        try {
+            val entry = zip.getEntry(path) ?: return null
+            val inputStream = zip.getInputStream(entry) ?: return null
             return inputStream.bufferedReader().use { it.readText() }
         } catch (e: Exception) {
             Log.e(TAG, "Error reading file from ZIP: $path", e)

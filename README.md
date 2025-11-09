@@ -4,14 +4,26 @@ A modern Android e-book reader application built with Kotlin, supporting PDF, EP
 
 ## Features
 
-- 📚 **Multi-format Support** - PDF, EPUB, MOBI, TXT, CBZ, CBR
+- 📚 **Multi-format Support** - PDF, EPUB, MOBI, TXT, CBZ, CBR, FB2, Markdown, HTML/XML
 - 💾 **Local Database** - Room database for efficient storage
 - 📊 **Progress Tracking** - Automatic reading progress and completion tracking
 - 🎨 **Material Design 3 UI** - Modern, polished interface with purple theme
 - 📖 **Library Management** - Grid and list view options for your collection
 - 🖼️ **Dynamic Book Covers** - Auto-generated colorful covers with title and author
 - 🔖 **Bookmarks** - Save and manage reading positions with notes
+- ✨ **Highlights** - Mark and annotate text passages with colors
+- 🏷️ **Tags System** - Flexible categorization with custom tags
+- ⭐ **Book Ratings** - Personal 5-star rating system
+- 📚 **Reading Lists** - Plan and organize your reading queue
+- 🎯 **Reading Goals** - Set and track reading targets (books, pages, time)
+- 🤖 **Smart Collections** - Auto-organize by author, genre, year, status
+- 🔍 **Duplicate Detection** - Find and identify duplicate books
 - ☁️ **Cloud Sync** - Sync reading progress across devices with Firebase
+- 🗣️ **Text-to-Speech** - Listen to books with TTS engine
+- 📖 **Table of Contents** - Navigate chapters easily in EPUB books
+- 📖 **Reading Modes** - Single-column, two-column, or continuous scroll layouts
+- 🌙 **Multiple Themes** - Light, Dark, and Sepia reading themes
+- 🔆 **Brightness Control** - Custom brightness settings for reading
 - ✨ **Smooth Animations** - Polished transitions and micro-interactions
 - 🎯 **Custom Icons** - Consistent design language with vector icons
 
@@ -29,18 +41,29 @@ A modern Android e-book reader application built with Kotlin, supporting PDF, EP
 - **EditBookActivity.kt** - Edit book metadata
 
 #### Data Layer
-- **Book.kt** - Room entity for book data model with progress tracking
+- **Book.kt** - Room entity for book data with metadata (rating, genre, publisher, year, language, ISBN)
 - **Bookmark.kt** - Room entity for bookmarks with notes
 - **Collection.kt** - Room entity for organizing books into collections
+- **Tag.kt** - Room entity for flexible tagging system
+- **ReadingGoal.kt** - Room entity for tracking reading targets
+- **ReadingList.kt** - Room entity for reading queues
+- **Highlight.kt** - Room entity for text highlights with colors
 - **BookDao.kt** - Room DAO for book database operations
 - **BookmarkDao.kt** - Room DAO for bookmark operations
 - **CollectionDao.kt** - Room DAO for collection management
-- **BookDatabase.kt** - Room database configuration with migrations
+- **TagDao.kt** - Room DAO for tag operations
+- **ReadingGoalDao.kt** - Room DAO for goal tracking
+- **ReadingListDao.kt** - Room DAO for reading list management
+- **HighlightDao.kt** - Room DAO for highlight operations
+- **BookDatabase.kt** - Room database configuration with migrations (version 6)
 
 #### ViewModels
 - **BookViewModel.kt** - Manages book data, search, sort, and filter
 - **CollectionViewModel.kt** - Manages collections and book-collection relationships
 - **SyncViewModel.kt** - Handles cloud sync operations and status
+- **TagViewModel.kt** - Manages tags and book-tag relationships
+- **ReadingGoalViewModel.kt** - Tracks reading goals and progress
+- **ReadingListViewModel.kt** - Manages reading lists and queues
 
 #### Adapters
 - **BookAdapter.kt** - RecyclerView adapter with dynamic cover generation
@@ -52,6 +75,11 @@ A modern Android e-book reader application built with Kotlin, supporting PDF, EP
 - **PreferencesManager.kt** - Manages app preferences and settings
 - **FileValidator.kt** - Validates file formats and integrity
 - **BitmapCache.kt** - Efficient image caching for covers
+- **EpubParser.kt** - Custom EPUB format parser
+- **Fb2Parser.kt** - FictionBook 2 (FB2) XML parser
+- **MarkdownParser.kt** - Markdown to HTML converter
+- **SmartCollections.kt** - Auto-organize books into smart collections
+- **DuplicateDetector.kt** - Find duplicate books using similarity algorithms
 
 ### Resources
 
@@ -195,10 +223,27 @@ Polished experience with subtle micro-interactions:
 - [x] Enhanced empty states with illustrations
 - [x] Cloud sync with Firebase
 - [x] Bookmarks with notes support
+- [x] Highlights with colors and annotations
 - [x] Collections for organizing books
 - [x] Search, sort, and filter functionality
 - [x] File validation and error handling
 - [x] Network book download from URL
+- [x] Text-to-Speech (TTS) support
+- [x] Table of Contents navigation
+- [x] Dictionary integration
+- [x] Night mode toggle
+- [x] FB2 (FictionBook) format support
+- [x] Markdown format support
+- [x] HTML/XML format support
+- [x] Tags system for flexible categorization
+- [x] Book ratings (5-star system)
+- [x] Reading goals tracking
+- [x] Reading lists/queues
+- [x] Smart Collections (auto-organize)
+- [x] Duplicate detection
+- [x] Layout modes (single/two-column/continuous)
+- [x] Brightness control
+- [x] Extended book metadata (genre, publisher, year, language, ISBN)
 
 ### Core Features ✅
 - [x] Project structure and configuration
@@ -234,31 +279,44 @@ Polished experience with subtle micro-interactions:
 - [x] **Dictionary Integration** - Look up words while reading
 - [x] **Night Mode Toggle** - Quick toggle in viewer
 - [x] **Page Flip Animations** - Realistic page turning effects
+- [x] **Layout Modes** - Single-column, two-column, continuous scroll
+- [x] **Brightness Control** - Custom brightness for reading
 - [ ] **Split-Screen Reading** - Compare pages or translations
+- [ ] **Translation Integration** - Translate selected text
+- [ ] **Text Styling** - Underline, boldness, italics, shadow effects
 
 #### Library Management
-- [ ] **Smart Collections** - Auto-organize by author, genre, year
-- [ ] **Tags System** - Flexible categorization beyond collections
-- [ ] **Reading Goals** - Set and track reading targets
-- [ ] **Book Ratings** - Personal rating system
-- [ ] **Reading Lists** - Plan your reading queue
+- [x] **Smart Collections** - Auto-organize by author, genre, year
+- [x] **Tags System** - Flexible categorization beyond collections
+- [x] **Reading Goals** - Set and track reading targets
+- [x] **Book Ratings** - Personal 5-star rating system
+- [x] **Reading Lists** - Plan your reading queue
+- [x] **Duplicate Detection** - Find and identify duplicate books
 - [ ] **Advanced Search** - Full-text search within books
-- [ ] **Duplicate Detection** - Find and merge duplicate books
+- [ ] **Batch Import** - Import multiple books at once
+- [ ] **Export Library** - Export library data and metadata
 
 #### Cloud & Sync
-- [ ] **Multi-device Sync** - Real-time sync across devices
-- [ ] **Sync Book Files** - Optional cloud storage for book files
+- [x] **Firebase Sync** - Real-time sync across devices (reading progress, bookmarks)
+- [x] **Anonymous Authentication** - No personal data required
+- [x] **Offline Support** - Queue changes when offline
+- [x] **Background Sync** - WorkManager integration
+- [ ] **Multi-Cloud Support** - Google Drive, OneDrive, Dropbox, etc.
+- [ ] **Book File Sync** - Optional cloud storage for book files
 - [ ] **Collaborative Collections** - Share collections with others
-- [ ] **Reading Progress Sharing** - Share updates on social media
-- [ ] **Backup to Google Drive** - Alternative cloud backup option
+- [ ] **Import from Cloud** - Download books from cloud storage
+- [ ] **WebDAV/FTP Support** - Connect to personal servers
+- [ ] **Object Storage** - S3-compatible storage support
 
 #### Performance & Technical
-- [ ] **PDF Rendering Optimization** - Faster page loading and caching
+- [x] **PDF Rendering Optimization** - Faster page loading and caching
+- [x] **Lazy Loading** - Memory-efficient comic book rendering
+- [x] **Image Optimization** - Automatic bitmap scaling and caching
+- [x] **Large File Support** - Handle large books with chunked reading
 - [ ] **Background Downloads** - Download books in background
 - [ ] **Offline Mode Indicator** - Clear sync status display
 - [ ] **Battery Optimization** - Reduce battery usage during reading
-- [ ] **Memory Management** - Better handling of large files
-- [ ] **File Format Extensions** - Support for FB2, AZW3, DjVu
+- [ ] **Additional Formats** - AZW3, CB7, CBT, DOCX support
 
 #### Accessibility
 - [ ] **Screen Reader Support** - Full TalkBack compatibility
@@ -325,15 +383,18 @@ The app includes cloud sync functionality to synchronize reading progress, bookm
 - Each user gets a unique anonymous ID
 - Data is stored in user-specific Firestore collections
 
-## Supported File Formats
+### Supported File Formats
 
-### E-Books
+#### E-Books
 - **PDF** - Portable Document Format (using Android PdfRenderer)
-- **EPUB** - Electronic Publication (basic HTML extraction)
+- **EPUB** - Electronic Publication (custom HTML extraction)
 - **MOBI** - Mobipocket format (basic text extraction)
+- **FB2** - FictionBook 2 format (XML-based with metadata extraction)
 - **TXT** - Plain text files
+- **Markdown** - Markdown files (.md) with full rendering
+- **HTML/XML** - Web formats (.html, .htm, .xhtml, .xml, .mhtml)
 
-### Comic Books
+#### Comic Books
 - **CBZ** - Comic Book ZIP archive
 - **CBR** - Comic Book RAR archive
 
@@ -379,3 +440,34 @@ rifters
 - [Apache Commons Compress](https://commons.apache.org/proper/commons-compress/) for ZIP handling
 - [junrar](https://github.com/junrar/junrar) for RAR extraction
 - [Firebase](https://firebase.google.com/) for cloud sync infrastructure
+
+## Planned Cloud Storage Integration
+
+The following cloud storage providers are planned for future integration to enable book importing and synchronization:
+
+### Tier 1 Priority (Most Requested)
+- **Google Drive** - Official Google Drive SDK integration
+- **OneDrive** - Microsoft OneDrive API integration
+- **Dropbox** - Dropbox API v2 integration
+
+### Tier 2 Priority (Popular Services)
+- **MEGA** - MEGA.nz storage integration
+- **pCloud** - pCloud storage API
+- **Yandex Disk** - Yandex cloud storage
+- **Box** - Box.com enterprise storage
+
+### Tier 3 Priority (Self-Hosted/Advanced)
+- **WebDAV** - Generic WebDAV protocol support
+- **FTP/SFTP** - File transfer protocol support
+- **SMB** - Windows network shares (Samba)
+- **Object Storage** - S3-compatible storage (MinIO, Wasabi, etc.)
+
+### Planned Features
+- **Import Books** - Browse and download books from cloud storage
+- **Sync Library** - Optionally sync entire book files (not just metadata)
+- **Backup/Restore** - Full library backup to cloud
+- **Multi-Source** - Connect multiple cloud accounts simultaneously
+- **Automatic Sync** - Auto-upload/download based on preferences
+- **Conflict Resolution** - Smart handling of file conflicts
+
+**Note:** Cloud storage integration requires additional dependencies and API credentials. Implementation will follow community feedback and demand.

@@ -197,8 +197,50 @@ object FileValidator {
                 "mobi" -> context.getString(R.string.error_mobi_invalid)
                 "cbz" -> context.getString(R.string.error_cbz_invalid)
                 "cbr" -> context.getString(R.string.error_cbr_invalid)
+                "fb2" -> "Error opening FictionBook file"
+                "md" -> "Error opening Markdown file"
+                "html", "htm", "xhtml", "xml", "mhtml" -> "Error opening HTML file"
                 else -> context.getString(R.string.error_opening_file)
             }
+        }
+    }
+    
+    /**
+     * Validates FB2 (FictionBook) file format
+     */
+    fun validateFb2File(file: File): Boolean {
+        return try {
+            val content = file.readText(Charsets.UTF_8).take(1000)
+            content.contains("<?xml") && 
+            (content.contains("<FictionBook") || content.contains("<fictionbook"))
+        } catch (e: Exception) {
+            false
+        }
+    }
+    
+    /**
+     * Validates Markdown file format
+     * Very permissive - any text file is technically valid Markdown
+     */
+    fun validateMarkdownFile(file: File): Boolean {
+        return try {
+            file.readText(Charsets.UTF_8).isNotEmpty()
+        } catch (e: Exception) {
+            false
+        }
+    }
+    
+    /**
+     * Validates HTML/XML file format
+     */
+    fun validateHtmlFile(file: File): Boolean {
+        return try {
+            val content = file.readText(Charsets.UTF_8).take(1000).lowercase()
+            content.contains("<html") || 
+            content.contains("<!doctype") ||
+            content.contains("<?xml")
+        } catch (e: Exception) {
+            false
         }
     }
 }

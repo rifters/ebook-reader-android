@@ -21,5 +21,11 @@ data class Book(
     val totalPages: Int = 0,
     val currentPage: Int = 0,
     val isCompleted: Boolean = false,
-    val progressPercentage: Float = 0f
+    val progressPercentage: Float = 0f,
+    val rating: Float = 0f, // 0-5 star rating
+    val genre: String? = null, // Book genre/category
+    val publisher: String? = null,
+    val publishedYear: Int? = null,
+    val language: String? = null,
+    val isbn: String? = null
 ) : Parcelable

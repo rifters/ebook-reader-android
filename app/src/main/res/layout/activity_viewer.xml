@@ -84,6 +84,22 @@
             android:layout_gravity="center"
             android:indeterminate="true"
             android:visibility="visible" />
+        
+        <!-- Page indicator -->
+        <TextView
+            android:id="@+id/pageIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_marginBottom="80dp"
+            android:background="@drawable/rounded_background"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+            android:textColor="?attr/colorOnSecondaryContainer"
+            android:elevation="4dp"
+            android:visibility="gone"
+            tools:text="Page 1 of 100" />
 
     </FrameLayout>
 

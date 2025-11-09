@@ -101,10 +101,66 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                               result != TextToSpeech.LANG_NOT_SUPPORTED
             if (!isTtsInitialized) {
                 Toast.makeText(this, "TTS language not supported", Toast.LENGTH_SHORT).show()
+            } else {
+                // Set up utterance progress listener for text highlighting
+                textToSpeech?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {
+                        runOnUiThread {
+                            // TTS started speaking
+                        }
+                    }
+                    
+                    override fun onDone(utteranceId: String?) {
+                        runOnUiThread {
+                            isTtsPlaying = false
+                            updateTtsButtons()
+                        }
+                    }
+                    
+                    override fun onError(utteranceId: String?) {
+                        runOnUiThread {
+                            isTtsPlaying = false
+                            updateTtsButtons()
+                            Toast.makeText(this@ViewerActivity, "TTS error occurred", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    
+                    override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+                        // This method is called when TTS starts speaking a range of text
+                        // We can use this to highlight the currently spoken text
+                        runOnUiThread {
+                            highlightSpokenText(start, end)
+                        }
+                    }
+                })
             }
         } else {
             Toast.makeText(this, "TTS initialization failed", Toast.LENGTH_SHORT).show()
         }
+    }
+    
+    private fun highlightSpokenText(start: Int, end: Int) {
+        // For WebView content (EPUB), inject JavaScript to highlight the text
+        if (binding.webView.visibility == View.VISIBLE) {
+            binding.webView.evaluateJavascript(
+                """
+                (function() {
+                    // Remove previous highlights
+                    var oldHighlight = document.getElementById('tts-highlight');
+                    if (oldHighlight) {
+                        oldHighlight.remove();
+                    }
+                    
+                    // This is a simplified implementation
+                    // A full implementation would require tracking text positions
+                    // and selecting the appropriate text range
+                })();
+                """.trimIndent(),
+                null
+            )
+        }
+        // For TextView content (TXT), we can use SpannableString to highlight
+        // This would require more complex implementation
     }
     
     private fun setupToolbar() {
@@ -1439,7 +1495,34 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             
             currentProgressPercent = progress
             bookViewModel.updateProgress(book.id, boundedPage, progress)
+            
+            // Update page indicator
+            updatePageIndicator(boundedPage + 1, totalPages)
         }
+    }
+    
+    private fun updatePageIndicator(currentPage: Int, totalPages: Int) {
+        if (totalPages > 0) {
+            binding.pageIndicator.visibility = View.VISIBLE
+            binding.pageIndicator.text = getString(R.string.page_indicator, currentPage, totalPages)
+            
+            // Auto-hide after 2 seconds
+            binding.pageIndicator.removeCallbacks(hidePageIndicatorRunnable)
+            binding.pageIndicator.postDelayed(hidePageIndicatorRunnable, 2000)
+        } else {
+            binding.pageIndicator.visibility = View.GONE
+        }
+    }
+    
+    private val hidePageIndicatorRunnable = Runnable {
+        binding.pageIndicator.animate()
+            .alpha(0f)
+            .setDuration(300)
+            .withEndAction {
+                binding.pageIndicator.visibility = View.GONE
+                binding.pageIndicator.alpha = 1f
+            }
+            .start()
     }
     
     private fun previousPage() {

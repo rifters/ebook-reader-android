@@ -87,6 +87,26 @@ dependencies {
     implementation("com.github.junrar:junrar:7.5.5") // For CBR (RAR)
     implementation("org.tukaani:xz:1.9") // For 7z decompression support
     
+    // Cloud Storage - Google Drive
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
+    implementation("com.google.apis:google-api-services-drive:v3-rev20220815-2.0.0") {
+        exclude(group = "org.apache.httpcomponents", module = "httpclient")
+    }
+    implementation("com.google.api-client:google-api-client-android:2.2.0") {
+        exclude(group = "org.apache.httpcomponents", module = "httpclient")
+        exclude(group = "com.google.guava", module = "guava-jdk5")
+    }
+    implementation("com.google.http-client:google-http-client-gson:1.42.3") {
+        exclude(group = "org.apache.httpcomponents", module = "httpclient")
+    }
+    
+    // Cloud Storage - Dropbox
+    implementation("com.dropbox.core:dropbox-core-sdk:5.4.5")
+    
+    // Cloud Storage - FTP/SFTP
+    implementation("commons-net:commons-net:3.10.0") // For FTP
+    implementation("com.jcraft:jsch:0.1.55") // For SFTP
+    
     // File picker for document selection
     implementation("androidx.activity:activity-ktx:1.8.1")
     implementation("androidx.documentfile:documentfile:1.0.1")

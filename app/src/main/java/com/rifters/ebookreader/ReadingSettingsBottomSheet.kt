@@ -47,6 +47,10 @@ class ReadingSettingsBottomSheet : BottomSheetDialogFragment() {
                 "monospace" -> binding.fontMonospace.isChecked = true
             }
             
+            // Set font size
+            binding.fontSizeSlider.value = prefs.fontSize.toFloat()
+            binding.fontSizeValue.text = "${prefs.fontSize}sp"
+            
             // Set theme
             when (prefs.theme) {
                 ReadingTheme.LIGHT -> binding.themeLight.isChecked = true
@@ -65,6 +69,11 @@ class ReadingSettingsBottomSheet : BottomSheetDialogFragment() {
     }
     
     private fun setupListeners() {
+        // Font size slider
+        binding.fontSizeSlider.addOnChangeListener { _, value, _ ->
+            binding.fontSizeValue.text = "${value.toInt()}sp"
+        }
+        
         // Line spacing slider
         binding.lineSpacingSlider.addOnChangeListener { _, value, _ ->
             binding.lineSpacingValue.text = String.format("%.1fx", value)
@@ -88,6 +97,8 @@ class ReadingSettingsBottomSheet : BottomSheetDialogFragment() {
             else -> "sans-serif"
         }
         
+        val fontSize = binding.fontSizeSlider.value.toInt()
+        
         val theme = when (binding.themeChipGroup.checkedChipId) {
             R.id.themeDark -> ReadingTheme.DARK
             R.id.themeSepia -> ReadingTheme.SEPIA
@@ -99,6 +110,7 @@ class ReadingSettingsBottomSheet : BottomSheetDialogFragment() {
         
         val preferences = ReadingPreferences(
             fontFamily = fontFamily,
+            fontSize = fontSize,
             theme = theme,
             lineSpacing = lineSpacing,
             marginHorizontal = margin,

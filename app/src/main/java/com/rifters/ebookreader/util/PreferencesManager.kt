@@ -14,6 +14,7 @@ class PreferencesManager(context: Context) {
     fun saveReadingPreferences(preferences: ReadingPreferences) {
         prefs.edit().apply {
             putString(KEY_FONT_FAMILY, preferences.fontFamily)
+            putInt(KEY_FONT_SIZE, preferences.fontSize)
             putString(KEY_THEME, preferences.theme.name)
             putFloat(KEY_LINE_SPACING, preferences.lineSpacing)
             putInt(KEY_MARGIN_HORIZONTAL, preferences.marginHorizontal)
@@ -24,6 +25,7 @@ class PreferencesManager(context: Context) {
     
     fun getReadingPreferences(): ReadingPreferences {
         val fontFamily = prefs.getString(KEY_FONT_FAMILY, "sans-serif") ?: "sans-serif"
+        val fontSize = prefs.getInt(KEY_FONT_SIZE, 16)
         val themeName = prefs.getString(KEY_THEME, ReadingTheme.LIGHT.name) ?: ReadingTheme.LIGHT.name
         val theme = try {
             ReadingTheme.valueOf(themeName)
@@ -36,6 +38,7 @@ class PreferencesManager(context: Context) {
         
         return ReadingPreferences(
             fontFamily = fontFamily,
+            fontSize = fontSize,
             theme = theme,
             lineSpacing = lineSpacing,
             marginHorizontal = marginHorizontal,
@@ -80,6 +83,7 @@ class PreferencesManager(context: Context) {
     companion object {
         private const val PREFS_NAME = "reading_preferences"
         private const val KEY_FONT_FAMILY = "font_family"
+        private const val KEY_FONT_SIZE = "font_size"
         private const val KEY_THEME = "theme"
         private const val KEY_LINE_SPACING = "line_spacing"
         private const val KEY_MARGIN_HORIZONTAL = "margin_horizontal"

@@ -1439,6 +1439,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (binding.textView.visibility == View.VISIBLE) {
             binding.textView.apply {
                 setTextColor(preferences.theme.textColor)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, preferences.fontSize.toFloat())
                 setLineSpacing(0f, preferences.lineSpacing)
                 typeface = Typeface.create(preferences.fontFamily, Typeface.NORMAL)
                 setPadding(
@@ -1467,6 +1468,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             <style>
                 body {
                     font-family: ${preferences.fontFamily};
+                    font-size: ${preferences.fontSize}px;
                     line-height: ${preferences.lineSpacing};
                     color: $textColor !important;
                     background-color: $backgroundColor !important;

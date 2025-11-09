@@ -68,6 +68,15 @@ class PreferencesManager(context: Context) {
         return prefs.getLong(KEY_LAST_SYNC, 0L)
     }
     
+    // Night mode preference (separate from theme)
+    fun setNightModeEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_NIGHT_MODE, enabled).apply()
+    }
+    
+    fun isNightModeEnabled(): Boolean {
+        return prefs.getBoolean(KEY_NIGHT_MODE, false)
+    }
+    
     companion object {
         private const val PREFS_NAME = "reading_preferences"
         private const val KEY_FONT_FAMILY = "font_family"
@@ -78,5 +87,6 @@ class PreferencesManager(context: Context) {
         private const val KEY_SYNC_ENABLED = "sync_enabled"
         private const val KEY_AUTO_SYNC = "auto_sync"
         private const val KEY_LAST_SYNC = "last_sync_timestamp"
+        private const val KEY_NIGHT_MODE = "night_mode_enabled"
     }
 }

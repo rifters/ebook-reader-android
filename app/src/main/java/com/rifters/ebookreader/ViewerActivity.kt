@@ -52,6 +52,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var comicImages: MutableList<Bitmap> = mutableListOf()
     private var totalComicPages: Int = 0
     
+    // EPUB variables
+    private var epubContent: com.rifters.ebookreader.util.EpubParser.EpubContent? = null
+    private var currentEpubChapter: Int = 0
+    
     // TTS variables
     private var textToSpeech: TextToSpeech? = null
     private var isTtsInitialized = false
@@ -61,7 +65,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     // Table of Contents
     private var tableOfContents: List<com.rifters.ebookreader.model.TableOfContentsItem> = emptyList()
     
-    // Night mode state
+    // Night mode state (separate from theme for toggle functionality)
     private var isNightModeEnabled = false
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,6 +79,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         setupToolbar()
         setupBottomBar()
         setupTTS()
+        
+        // Load night mode state
+        isNightModeEnabled = preferencesManager.isNightModeEnabled()
         
         // Apply saved theme on activity load
         val preferences = preferencesManager.getReadingPreferences()
@@ -460,27 +467,11 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private suspend fun loadEpub(file: File) {
         withContext(Dispatchers.IO) {
             try {
-                val zipFile = ZipFile(file)
-                val entries = zipFile.entries()
+                // Parse EPUB structure
+                val parser = com.rifters.ebookreader.util.EpubParser(file)
+                epubContent = parser.parse()
                 
-                // Parse table of contents from EPUB
-                parseEpubToc(zipFile)
-                
-                // Find the first HTML/XHTML content file
-                var contentHtml = ""
-                while (entries.hasMoreElements()) {
-                    val entry = entries.nextElement()
-                    val name = entry.name.lowercase()
-                    
-                    if (name.endsWith(".html") || name.endsWith(".xhtml") || name.endsWith(".htm")) {
-                        val inputStream = zipFile.getInputStream(entry)
-                        contentHtml = inputStream.bufferedReader().use { it.readText() }
-                        break
-                    }
-                }
-                
-                if (contentHtml.isEmpty()) {
-                    // No content found - show error
+                if (epubContent == null) {
                     withContext(Dispatchers.Main) {
                         binding.loadingProgressBar.visibility = View.GONE
                         Toast.makeText(
@@ -490,11 +481,18 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         ).show()
                         finish()
                     }
-                    zipFile.close()
                     return@withContext
                 }
                 
-                zipFile.close()
+                // Extract TOC
+                tableOfContents = epubContent!!.toc
+                
+                // Load the first chapter or resume from saved position
+                val chapterToLoad = if (currentPage >= 0 && currentPage < epubContent!!.spine.size) {
+                    currentPage
+                } else {
+                    0
+                }
                 
                 withContext(Dispatchers.Main) {
                     binding.apply {
@@ -511,20 +509,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             displayZoomControls = false
                             loadWithOverviewMode = true
                             useWideViewPort = true
-                        }
-                        
-                        // Enable text selection for dictionary lookup
-                        webView.setOnLongClickListener {
-                            val result = (it as WebView).hitTestResult
-                            if (result.type == WebView.HitTestResult.SRC_ANCHOR_TYPE ||
-                                result.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE ||
-                                result.type == WebView.HitTestResult.IMAGE_TYPE) {
-                                // Let WebView handle long press on links/images
-                                false
-                            } else {
-                                // Enable text selection and dictionary lookup
-                                false
-                            }
+                            domStorageEnabled = true
                         }
                         
                         webView.webViewClient = object : android.webkit.WebViewClient() {
@@ -533,21 +518,15 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                                 val preferences = preferencesManager.getReadingPreferences()
                                 applyWebViewStyles(preferences)
                                 
-                                // Inject JavaScript for text selection and dictionary support
-                                view?.loadUrl("javascript:(function() { " +
-                                    "document.addEventListener('selectionchange', function() { " +
-                                    "  var selection = window.getSelection(); " +
-                                    "  if (selection && selection.toString().length > 0) { " +
-                                    "    Android.onTextSelected(selection.toString()); " +
-                                    "  } " +
-                                    "}); " +
-                                "})()")
+                                // Apply night mode if enabled
+                                if (isNightModeEnabled) {
+                                    applyNightModeToWebView()
+                                }
                             }
                         }
-                        
-                        webView.loadDataWithBaseURL(null, contentHtml, "text/html", "UTF-8", null)
-                        currentTextContent = contentHtml // Store for TTS
                     }
+                    
+                    renderEpubChapter(chapterToLoad)
                 }
             } catch (e: java.util.zip.ZipException) {
                 e.printStackTrace()
@@ -572,48 +551,106 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
     
-    private fun parseEpubToc(zipFile: ZipFile) {
-        try {
-            val tocItems = mutableListOf<com.rifters.ebookreader.model.TableOfContentsItem>()
-            val entries = zipFile.entries()
-            
-            // Look for toc.ncx or nav.xhtml file
-            while (entries.hasMoreElements()) {
-                val entry = entries.nextElement()
-                val name = entry.name.lowercase()
-                
-                if (name.endsWith("toc.ncx") || name.endsWith("nav.xhtml") || name.contains("toc")) {
-                    val inputStream = zipFile.getInputStream(entry)
-                    val content = inputStream.bufferedReader().use { it.readText() }
-                    
-                    // Simple regex-based parsing for demonstration
-                    // In a production app, use proper XML parsing
-                    val navPointPattern = """<navLabel>.*?<text>(.*?)</text>.*?<content src="(.*?)"""".toRegex(RegexOption.DOT_MATCHES_ALL)
-                    val matches = navPointPattern.findAll(content)
-                    
-                    matches.forEachIndexed { index, match ->
-                        val title = match.groupValues[1].trim()
-                        val href = match.groupValues[2].trim()
-                        tocItems.add(
-                            com.rifters.ebookreader.model.TableOfContentsItem(
-                                title = title,
-                                href = href,
-                                page = index,
-                                level = 0
-                            )
-                        )
-                    }
-                    
-                    break
-                }
+    private fun renderEpubChapter(chapterIndex: Int) {
+        epubContent?.let { content ->
+            if (chapterIndex < 0 || chapterIndex >= content.spine.size) {
+                Toast.makeText(this, "Invalid chapter", Toast.LENGTH_SHORT).show()
+                return
             }
             
-            tableOfContents = tocItems
-        } catch (e: Exception) {
-            // If TOC parsing fails, just continue without it
-            e.printStackTrace()
-            tableOfContents = emptyList()
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val parser = com.rifters.ebookreader.util.EpubParser(File(currentBook?.filePath ?: ""))
+                    val chapterHtml = parser.getChapterContent(chapterIndex, content)
+                    
+                    if (chapterHtml.isNullOrEmpty()) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                this@ViewerActivity,
+                                "Could not load chapter",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        return@launch
+                    }
+                    
+                    withContext(Dispatchers.Main) {
+                        // Apply fade animation
+                        binding.webView.animate()
+                            .alpha(0f)
+                            .setDuration(150)
+                            .withEndAction {
+                                binding.webView.loadDataWithBaseURL(
+                                    null,
+                                    wrapEpubChapterHtml(chapterHtml),
+                                    "text/html",
+                                    "UTF-8",
+                                    null
+                                )
+                                
+                                binding.webView.animate()
+                                    .alpha(1f)
+                                    .setDuration(150)
+                                    .start()
+                            }
+                            .start()
+                        
+                        currentEpubChapter = chapterIndex
+                        currentPage = chapterIndex
+                        currentTextContent = chapterHtml // Store for TTS
+                        
+                        // Update progress
+                        updateProgress(chapterIndex, content.spine.size)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@ViewerActivity,
+                            "Error loading chapter: ${e.message}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }
         }
+    }
+    
+    private fun wrapEpubChapterHtml(chapterHtml: String): String {
+        return """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8"/>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+                <style>
+                    html, body {
+                        margin: 0;
+                        padding: 0;
+                        overflow-x: hidden;
+                    }
+                    body {
+                        padding: 16px;
+                        font-size: 16px;
+                        line-height: 1.6;
+                        word-wrap: break-word;
+                    }
+                    img {
+                        max-width: 100% !important;
+                        height: auto !important;
+                    }
+                </style>
+            </head>
+            <body>
+                $chapterHtml
+            </body>
+            </html>
+        """.trimIndent()
+    }
+    
+    private fun parseEpubToc(zipFile: java.util.zip.ZipFile) {
+        // This method is now deprecated - TOC is parsed by EpubParser
+        // Keeping for compatibility but it does nothing
     }
     
     private suspend fun loadMobi(file: File) {
@@ -1039,6 +1076,12 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             } else {
                 Toast.makeText(this, "Already at first page", Toast.LENGTH_SHORT).show()
             }
+        } else if (epubContent != null) {
+            if (currentEpubChapter > 0) {
+                renderEpubChapter(currentEpubChapter - 1)
+            } else {
+                Toast.makeText(this, "Already at first chapter", Toast.LENGTH_SHORT).show()
+            }
         } else {
             Toast.makeText(this, "Page navigation not available for this format", Toast.LENGTH_SHORT).show()
         }
@@ -1058,6 +1101,12 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 renderComicPage(currentPage)
             } else {
                 Toast.makeText(this, "Already at last page", Toast.LENGTH_SHORT).show()
+            }
+        } else if (epubContent != null) {
+            if (currentEpubChapter < epubContent!!.spine.size - 1) {
+                renderEpubChapter(currentEpubChapter + 1)
+            } else {
+                Toast.makeText(this, "Already at last chapter", Toast.LENGTH_SHORT).show()
             }
         } else {
             Toast.makeText(this, "Page navigation not available for this format", Toast.LENGTH_SHORT).show()
@@ -1231,15 +1280,40 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     Toast.LENGTH_SHORT
                 ).show()
             }
-        } else if (binding.webView.visibility == View.VISIBLE) {
-            // For EPUB files, navigate using the href
-            binding.webView.loadUrl("javascript:window.location.hash='${tocItem.href}'")
-            Toast.makeText(this, tocItem.title, Toast.LENGTH_SHORT).show()
+        } else if (epubContent != null) {
+            // For EPUB files, try to find the chapter that matches the TOC href
+            val href = tocItem.href
+            
+            // Find the spine item that matches this href
+            var chapterIndex = -1
+            epubContent?.spine?.forEachIndexed { index, spineItem ->
+                val manifestItem = epubContent?.manifest?.get(spineItem.idref)
+                if (manifestItem != null) {
+                    val fullHref = epubContent!!.opfBasePath + manifestItem.href
+                    // Check if the TOC href matches or is contained in the manifest href
+                    if (href.contains(manifestItem.href) || fullHref.contains(href)) {
+                        chapterIndex = index
+                        return@forEachIndexed
+                    }
+                }
+            }
+            
+            if (chapterIndex >= 0) {
+                renderEpubChapter(chapterIndex)
+                Toast.makeText(this, tocItem.title, Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Chapter not found", Toast.LENGTH_SHORT).show()
+            }
         }
     }
     
     private fun toggleNightMode() {
         isNightModeEnabled = !isNightModeEnabled
+        
+        // Save night mode state
+        preferencesManager.setNightModeEnabled(isNightModeEnabled)
+        
+        // Apply night mode
         applyNightMode()
         
         val message = if (isNightModeEnabled) {
@@ -1251,49 +1325,69 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
     
     private fun applyNightMode() {
-        val backgroundColor: Int
-        val textColor: Int
-        
         if (isNightModeEnabled) {
-            // Dark theme colors
-            backgroundColor = 0xFF1C1C1C.toInt() // Dark gray
-            textColor = 0xFFE0E0E0.toInt() // Light gray
+            applyNightModeColors()
         } else {
-            // Light theme colors  
-            backgroundColor = 0xFFFFFFFF.toInt() // White
-            textColor = 0xFF000000.toInt() // Black
+            // Restore original theme
+            val preferences = preferencesManager.getReadingPreferences()
+            applyThemeToUI(preferences)
+            applyReadingPreferences(preferences)
         }
+    }
+    
+    private fun applyNightModeColors() {
+        val nightBackgroundColor = 0xFF1C1C1C.toInt() // Dark gray
+        val nightTextColor = 0xFFE0E0E0.toInt() // Light gray
         
         // Apply to content container
-        binding.contentContainer.setBackgroundColor(backgroundColor)
+        binding.contentContainer.setBackgroundColor(nightBackgroundColor)
         
         // Apply to TextView (for TXT files)
         if (binding.textView.visibility == View.VISIBLE) {
-            binding.textView.setTextColor(textColor)
+            binding.textView.setTextColor(nightTextColor)
+            binding.textView.setBackgroundColor(nightBackgroundColor)
         }
         
-        // Apply to WebView (for EPUB files)
+        // Apply to WebView (for EPUB/MOBI files)
         if (binding.webView.visibility == View.VISIBLE) {
-            val css = if (isNightModeEnabled) {
-                "body { background-color: #1C1C1C !important; color: #E0E0E0 !important; }"
-            } else {
-                "body { background-color: #FFFFFF !important; color: #000000 !important; }"
-            }
-            binding.webView.loadUrl("javascript:(function() { " +
-                    "var style = document.getElementById('night-mode-style'); " +
-                    "if (!style) { " +
-                    "  style = document.createElement('style'); " +
-                    "  style.id = 'night-mode-style'; " +
-                    "  document.head.appendChild(style); " +
-                    "} " +
-                    "style.innerHTML = '$css'; " +
-                    "})()")
+            applyNightModeToWebView()
         }
         
         // Apply to PDF ImageView (affects background behind the image)
         if (binding.pdfImageView.visibility == View.VISIBLE) {
-            binding.pdfImageView.setBackgroundColor(backgroundColor)
+            binding.pdfImageView.setBackgroundColor(nightBackgroundColor)
         }
+    }
+    
+    private fun applyNightModeToWebView() {
+        val css = """
+            body { 
+                background-color: #1C1C1C !important; 
+                color: #E0E0E0 !important; 
+            }
+            * {
+                background-color: transparent !important;
+                color: #E0E0E0 !important;
+            }
+            a {
+                color: #82B1FF !important;
+            }
+        """.trimIndent()
+        
+        binding.webView.evaluateJavascript(
+            """
+            (function() {
+                var style = document.getElementById('night-mode-style');
+                if (!style) {
+                    style = document.createElement('style');
+                    style.id = 'night-mode-style';
+                    document.head.appendChild(style);
+                }
+                style.innerHTML = `$css`;
+            })();
+            """.trimIndent(),
+            null
+        )
     }
     
     private fun lookupWord(word: String) {

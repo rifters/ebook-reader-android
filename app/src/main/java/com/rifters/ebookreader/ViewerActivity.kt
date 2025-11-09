@@ -107,6 +107,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     override fun onStart(utteranceId: String?) {
                         runOnUiThread {
                             // TTS started speaking
+                            isTtsPlaying = true
+                            updateTtsButtons()
                         }
                     }
                     
@@ -133,6 +135,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         }
                     }
                 })
+                
+                // Update UI to enable TTS buttons now that TTS is ready
+                updateTtsButtons()
             }
         } else {
             Toast.makeText(this, "TTS initialization failed", Toast.LENGTH_SHORT).show()
@@ -210,6 +215,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     
     private fun updateTtsMenuIcon(menu: Menu) {
         val ttsItem = menu.findItem(R.id.action_tts_play)
+        
+        // Enable/disable based on TTS readiness and content availability
+        ttsItem?.isEnabled = isTtsInitialized && currentTextContent.isNotEmpty()
+        
         if (isTtsPlaying) {
             ttsItem?.title = getString(R.string.tts_pause)
             ttsItem?.setIcon(android.R.drawable.ic_media_pause)
@@ -221,7 +230,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     
     private fun toggleTTS() {
         if (!isTtsInitialized) {
-            Toast.makeText(this, "TTS not initialized", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "TTS is initializing, please wait...", Toast.LENGTH_SHORT).show()
             return
         }
         
@@ -230,7 +239,6 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         } else {
             playTTS()
         }
-        updateTtsButtons()
     }
     
     private fun updateTtsButtons() {
@@ -238,16 +246,32 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         invalidateOptionsMenu()
         
         // Update bottom bar button
+        binding.btnTtsPlay.isEnabled = isTtsInitialized && currentTextContent.isNotEmpty()
+        
         if (isTtsPlaying) {
             binding.btnTtsPlay.setImageResource(android.R.drawable.ic_media_pause)
         } else {
             binding.btnTtsPlay.setImageResource(android.R.drawable.ic_media_play)
         }
+        
+        // Update alpha to show disabled state
+        binding.btnTtsPlay.alpha = if (binding.btnTtsPlay.isEnabled) 1.0f else 0.5f
     }
     
     private fun playTTS() {
+        // Check if TTS is properly initialized
+        if (textToSpeech == null) {
+            Toast.makeText(this, "TTS engine not available", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        if (!isTtsInitialized) {
+            Toast.makeText(this, "TTS is still initializing, please wait...", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
         if (currentTextContent.isEmpty()) {
-            Toast.makeText(this, "No text content to read", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "No text content available for this format", Toast.LENGTH_SHORT).show()
             return
         }
         
@@ -260,7 +284,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
         
         if (textToSpeak.trim().isEmpty()) {
-            Toast.makeText(this, "No text content to read", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Could not extract readable text from content", Toast.LENGTH_SHORT).show()
             return
         }
         
@@ -271,13 +295,19 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         textToSpeech?.setSpeechRate(ttsRate)
         textToSpeech?.setPitch(ttsPitch)
         
-        val result = textToSpeech?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, null, "tts_id")
+        // Use Bundle for API 21+
+        val params = android.os.Bundle()
+        params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "tts_id")
+        
+        val result = textToSpeech?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, params, "tts_id")
         
         if (result == TextToSpeech.SUCCESS) {
             isTtsPlaying = true
-            Toast.makeText(this, "TTS started", Toast.LENGTH_SHORT).show()
+            updateTtsButtons()
+        } else if (result == TextToSpeech.ERROR) {
+            Toast.makeText(this, "TTS engine error - please check TTS settings in device", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(this, "TTS failed to start", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Failed to start TTS", Toast.LENGTH_SHORT).show()
         }
     }
     
@@ -502,6 +532,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     
                     renderPdfPage(currentPage)
                     
+                    // TTS is not supported for PDF (image-based format)
+                    currentTextContent = ""
+                    updateTtsButtons()
+                    
                     // Apply theme background
                     val preferences = preferencesManager.getReadingPreferences()
                     applyThemeToUI(preferences)
@@ -719,6 +753,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         currentPage = chapterIndex
                         currentTextContent = chapterHtml // Store for TTS
                         
+                        // Update TTS button state now that content is loaded
+                        updateTtsButtons()
+                        
                         // Update progress
                         updateProgress(chapterIndex, content.spine.size)
                     }
@@ -825,6 +862,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         
                         webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
                         currentTextContent = content
+                        
+                        // Update TTS button state now that content is loaded
+                        updateTtsButtons()
                     }
                 }
             } catch (e: Exception) {
@@ -954,6 +994,11 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         scrollView.visibility = View.GONE
                         textView.visibility = View.GONE
                     }
+                    
+                    // TTS is not supported for comic books (image-based format)
+                    currentTextContent = ""
+                    updateTtsButtons()
+                    
                     renderComicPage(currentPage)
                 }
             } catch (e: java.util.zip.ZipException) {
@@ -1072,6 +1117,11 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         scrollView.visibility = View.GONE
                         textView.visibility = View.GONE
                     }
+                    
+                    // TTS is not supported for comic books (image-based format)
+                    currentTextContent = ""
+                    updateTtsButtons()
+                    
                     renderComicPage(currentPage)
                 }
             } catch (e: com.github.junrar.exception.RarException) {
@@ -1154,6 +1204,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 
                 textView.text = content
                 currentTextContent = content // Store for TTS
+                
+                // Update TTS button state now that content is loaded
+                updateTtsButtons()
             }
             
             // Apply reading preferences
@@ -1189,6 +1242,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 
                 webView.loadDataWithBaseURL(null, fb2Content.htmlContent, "text/html", "UTF-8", null)
                 currentTextContent = fb2Content.htmlContent
+                
+                // Update TTS button state now that content is loaded
+                updateTtsButtons()
             }
             
             // Update book metadata if available
@@ -1224,6 +1280,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 
                 webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
                 currentTextContent = htmlContent
+                
+                // Update TTS button state now that content is loaded
+                updateTtsButtons()
             }
             
             val preferences = preferencesManager.getReadingPreferences()
@@ -1247,6 +1306,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 
                 webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
                 currentTextContent = htmlContent
+                
+                // Update TTS button state now that content is loaded
+                updateTtsButtons()
             }
             
             val preferences = preferencesManager.getReadingPreferences()
@@ -1282,6 +1344,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 
                 textView.text = azwContent.content
                 currentTextContent = azwContent.content
+                
+                // Update TTS button state now that content is loaded
+                updateTtsButtons()
             }
             
             val preferences = preferencesManager.getReadingPreferences()
@@ -1316,6 +1381,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 
                 webView.loadDataWithBaseURL(null, docxContent.htmlContent, "text/html", "UTF-8", null)
                 currentTextContent = docxContent.htmlContent
+                
+                // Update TTS button state now that content is loaded
+                updateTtsButtons()
             }
             
             // Update book metadata if available
@@ -1388,6 +1456,11 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         scrollView.visibility = View.GONE
                         textView.visibility = View.GONE
                     }
+                    
+                    // TTS is not supported for comic books (image-based format)
+                    currentTextContent = ""
+                    updateTtsButtons()
+                    
                     renderComicPage(currentPage)
                 }
             } catch (e: Exception) {
@@ -1462,6 +1535,11 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         scrollView.visibility = View.GONE
                         textView.visibility = View.GONE
                     }
+                    
+                    // TTS is not supported for comic books (image-based format)
+                    currentTextContent = ""
+                    updateTtsButtons()
+                    
                     renderComicPage(currentPage)
                 }
             } catch (e: Exception) {

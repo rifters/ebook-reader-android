@@ -2,6 +2,7 @@ package com.rifters.ebookreader.model
 
 data class ReadingPreferences(
     val fontFamily: String = "sans-serif",
+    val fontSize: Int = 16, // Default font size in sp
     val theme: ReadingTheme = ReadingTheme.LIGHT,
     val lineSpacing: Float = 1.5f,
     val marginHorizontal: Int = 16,

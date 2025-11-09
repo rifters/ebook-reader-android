@@ -56,6 +56,45 @@
 
     </com.google.android.material.chip.ChipGroup>
 
+    <!-- Font Size Section -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/font_size"
+        android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+        android:textColor="?attr/colorOnSurface"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="12dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <com.google.android.material.slider.Slider
+            android:id="@+id/fontSizeSlider"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:valueFrom="12.0"
+            android:valueTo="28.0"
+            android:stepSize="1.0"
+            android:value="16.0" />
+
+        <TextView
+            android:id="@+id/fontSizeValue"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="16sp"
+            android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+            android:textColor="?attr/colorOnSurface"
+            android:minWidth="56dp"
+            android:gravity="end" />
+
+    </LinearLayout>
+
     <!-- Theme Section -->
     <TextView
         android:layout_width="match_parent"

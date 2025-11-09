@@ -10,6 +10,7 @@ class ReadingPreferencesTest {
         val preferences = ReadingPreferences()
         
         assertEquals("sans-serif", preferences.fontFamily)
+        assertEquals(16, preferences.fontSize)
         assertEquals(ReadingTheme.LIGHT, preferences.theme)
         assertEquals(1.5f, preferences.lineSpacing, 0.01f)
         assertEquals(16, preferences.marginHorizontal)
@@ -20,6 +21,7 @@ class ReadingPreferencesTest {
     fun `reading preferences with custom values`() {
         val preferences = ReadingPreferences(
             fontFamily = "serif",
+            fontSize = 20,
             theme = ReadingTheme.DARK,
             lineSpacing = 2.0f,
             marginHorizontal = 24,
@@ -27,6 +29,7 @@ class ReadingPreferencesTest {
         )
         
         assertEquals("serif", preferences.fontFamily)
+        assertEquals(20, preferences.fontSize)
         assertEquals(ReadingTheme.DARK, preferences.theme)
         assertEquals(2.0f, preferences.lineSpacing, 0.01f)
         assertEquals(24, preferences.marginHorizontal)

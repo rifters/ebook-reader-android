@@ -76,6 +76,7 @@
     <!-- Reading Settings -->
     <string name="reading_settings">Reading Settings</string>
     <string name="font_family">Font Family</string>
+    <string name="font_size">Font Size</string>
     <string name="font_sans_serif">Sans Serif</string>
     <string name="font_serif">Serif</string>
     <string name="font_monospace">Monospace</string>

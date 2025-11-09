@@ -43,6 +43,7 @@ class PreferencesManagerTest {
     fun `save reading preferences stores all values`() {
         val preferences = ReadingPreferences(
             fontFamily = "serif",
+            fontSize = 20,
             theme = ReadingTheme.DARK,
             lineSpacing = 2.0f,
             marginHorizontal = 24,
@@ -52,6 +53,7 @@ class PreferencesManagerTest {
         preferencesManager.saveReadingPreferences(preferences)
         
         verify(editor).putString("font_family", "serif")
+        verify(editor).putInt("font_size", 20)
         verify(editor).putString("theme", "DARK")
         verify(editor).putFloat("line_spacing", 2.0f)
         verify(editor).putInt("margin_horizontal", 24)
@@ -62,6 +64,7 @@ class PreferencesManagerTest {
     @Test
     fun `get reading preferences returns default values when no preferences exist`() {
         `when`(sharedPreferences.getString("font_family", "sans-serif")).thenReturn("sans-serif")
+        `when`(sharedPreferences.getInt("font_size", 16)).thenReturn(16)
         `when`(sharedPreferences.getString("theme", "LIGHT")).thenReturn("LIGHT")
         `when`(sharedPreferences.getFloat("line_spacing", 1.5f)).thenReturn(1.5f)
         `when`(sharedPreferences.getInt("margin_horizontal", 16)).thenReturn(16)
@@ -70,6 +73,7 @@ class PreferencesManagerTest {
         val preferences = preferencesManager.getReadingPreferences()
         
         assertEquals("sans-serif", preferences.fontFamily)
+        assertEquals(16, preferences.fontSize)
         assertEquals(ReadingTheme.LIGHT, preferences.theme)
         assertEquals(1.5f, preferences.lineSpacing, 0.01f)
         assertEquals(16, preferences.marginHorizontal)
@@ -79,6 +83,7 @@ class PreferencesManagerTest {
     @Test
     fun `get reading preferences returns stored values`() {
         `when`(sharedPreferences.getString("font_family", "sans-serif")).thenReturn("monospace")
+        `when`(sharedPreferences.getInt("font_size", 16)).thenReturn(22)
         `when`(sharedPreferences.getString("theme", "LIGHT")).thenReturn("SEPIA")
         `when`(sharedPreferences.getFloat("line_spacing", 1.5f)).thenReturn(2.5f)
         `when`(sharedPreferences.getInt("margin_horizontal", 16)).thenReturn(32)
@@ -87,6 +92,7 @@ class PreferencesManagerTest {
         val preferences = preferencesManager.getReadingPreferences()
         
         assertEquals("monospace", preferences.fontFamily)
+        assertEquals(22, preferences.fontSize)
         assertEquals(ReadingTheme.SEPIA, preferences.theme)
         assertEquals(2.5f, preferences.lineSpacing, 0.01f)
         assertEquals(32, preferences.marginHorizontal)
@@ -96,6 +102,7 @@ class PreferencesManagerTest {
     @Test
     fun `get reading preferences handles invalid theme gracefully`() {
         `when`(sharedPreferences.getString("font_family", "sans-serif")).thenReturn("sans-serif")
+        `when`(sharedPreferences.getInt("font_size", 16)).thenReturn(16)
         `when`(sharedPreferences.getString("theme", "LIGHT")).thenReturn("INVALID_THEME")
         `when`(sharedPreferences.getFloat("line_spacing", 1.5f)).thenReturn(1.5f)
         `when`(sharedPreferences.getInt("margin_horizontal", 16)).thenReturn(16)
@@ -176,5 +183,31 @@ class PreferencesManagerTest {
         val result = preferencesManager.getLastSyncTimestamp()
         
         assertEquals(timestamp, result)
+    }
+    
+    @Test
+    fun `set night mode enabled stores value`() {
+        preferencesManager.setNightModeEnabled(true)
+        
+        verify(editor).putBoolean("night_mode_enabled", true)
+        verify(editor).apply()
+    }
+    
+    @Test
+    fun `is night mode enabled returns default false`() {
+        `when`(sharedPreferences.getBoolean("night_mode_enabled", false)).thenReturn(false)
+        
+        val enabled = preferencesManager.isNightModeEnabled()
+        
+        assertFalse(enabled)
+    }
+    
+    @Test
+    fun `is night mode enabled returns stored value`() {
+        `when`(sharedPreferences.getBoolean("night_mode_enabled", false)).thenReturn(true)
+        
+        val enabled = preferencesManager.isNightModeEnabled()
+        
+        assertTrue(enabled)
     }
 }

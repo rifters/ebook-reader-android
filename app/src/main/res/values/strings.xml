@@ -211,4 +211,10 @@
     <string name="sftp">SFTP</string>
     <string name="connect_cloud">Connect Cloud Storage</string>
     <string name="cloud_provider">Cloud Provider</string>
+    
+    <!-- TTS Controls -->
+    <string name="tts_controls">TTS Controls</string>
+    <string name="tts_speed">Speed</string>
+    <string name="reset">Reset</string>
+    <string name="close">Close</string>
 </resources>

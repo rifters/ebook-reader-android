@@ -153,6 +153,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                                     // Finished all chunks
                                     isTtsPlaying = false
                                     updateTtsButtons()
+                                    hideTtsProgress()
                                     Toast.makeText(this@ViewerActivity, "Finished reading", Toast.LENGTH_SHORT).show()
                                 }
                             } else {
@@ -440,6 +441,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 // Save current position
                 saveTtsPosition(chunk.startPosition)
                 updateTtsButtons()
+                updateTtsProgress()
             }
             TextToSpeech.ERROR -> {
                 android.util.Log.e("ViewerActivity", "TTS speak returned ERROR")
@@ -473,7 +475,47 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         ttsTextChunks = emptyList()
         currentTtsChunkIndex = 0
         updateTtsButtons()
+        hideTtsProgress()
         Toast.makeText(this, "TTS stopped", Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun updateTtsProgress() {
+        if (ttsTextChunks.isEmpty()) {
+            return
+        }
+        
+        val currentChunk = ttsTextChunks[currentTtsChunkIndex]
+        val progressPercentage = ((currentTtsChunkIndex + 1) * 100 / ttsTextChunks.size)
+        
+        // Show progress with text preview (first 50 chars)
+        val preview = if (currentChunk.text.length > 50) {
+            currentChunk.text.substring(0, 50) + "..."
+        } else {
+            currentChunk.text
+        }
+        
+        val progressText = "🔊 $progressPercentage% • $preview"
+        binding.pageIndicator.text = progressText
+        binding.pageIndicator.visibility = View.VISIBLE
+    }
+    
+    private fun hideTtsProgress() {
+        // Only hide if showing TTS progress (starts with speaker emoji)
+        if (binding.pageIndicator.text.toString().startsWith("🔊")) {
+            binding.pageIndicator.visibility = View.GONE
+        }
+    }
+    
+    private fun showTtsControls() {
+        val bottomSheet = TtsControlsBottomSheet.newInstance()
+        bottomSheet.setOnSettingsChangedListener { rate, pitch ->
+            // Apply settings in real-time if TTS is playing
+            if (isTtsPlaying) {
+                textToSpeech?.setSpeechRate(rate)
+                textToSpeech?.setPitch(pitch)
+            }
+        }
+        bottomSheet.show(supportFragmentManager, TtsControlsBottomSheet.TAG)
     }
     
     private fun setupBottomBar() {
@@ -491,6 +533,11 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         
         binding.btnTtsPlay.setOnClickListener {
             toggleTTS()
+        }
+        
+        binding.btnTtsPlay.setOnLongClickListener {
+            showTtsControls()
+            true
         }
     }
     

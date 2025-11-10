@@ -97,6 +97,45 @@ class PreferencesManager(context: Context) {
         return prefs.getFloat(KEY_TTS_PITCH, 1.0f)
     }
     
+    // TTS Replacements
+    fun isTtsReplacementsEnabled(): Boolean {
+        return prefs.getBoolean(KEY_TTS_REPLACEMENTS_ENABLED, true)
+    }
+    
+    fun setTtsReplacementsEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_TTS_REPLACEMENTS_ENABLED, enabled).apply()
+    }
+    
+    fun getTtsReplacements(): String {
+        return prefs.getString(KEY_TTS_REPLACEMENTS, getDefaultTtsReplacements()) ?: getDefaultTtsReplacements()
+    }
+    
+    fun setTtsReplacements(replacements: String) {
+        prefs.edit().putString(KEY_TTS_REPLACEMENTS, replacements).apply()
+    }
+    
+    private fun getDefaultTtsReplacements(): String {
+        // Default replacements based on LibreraReader patterns
+        return """
+            {
+                "*[()\"«»""'/\\[\\]]": " ",
+                "*[?!:;–—―]": ". ",
+                "it's": "it is",
+                "can't": "cannot",
+                "won't": "will not",
+                "don't": "do not",
+                "I'm": "I am",
+                "you're": "you are",
+                "he's": "he is",
+                "she's": "she is",
+                "we're": "we are",
+                "they're": "they are",
+                "...": " [pause] ",
+                "…": " [pause] "
+            }
+        """.trimIndent()
+    }
+    
     companion object {
         private const val PREFS_NAME = "reading_preferences"
         private const val KEY_FONT_FAMILY = "font_family"
@@ -111,5 +150,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_NIGHT_MODE = "night_mode_enabled"
         private const val KEY_TTS_RATE = "tts_rate"
         private const val KEY_TTS_PITCH = "tts_pitch"
+        private const val KEY_TTS_REPLACEMENTS_ENABLED = "tts_replacements_enabled"
+        private const val KEY_TTS_REPLACEMENTS = "tts_replacements"
     }
 }

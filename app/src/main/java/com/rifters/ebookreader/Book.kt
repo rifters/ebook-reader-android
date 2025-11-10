@@ -27,5 +27,8 @@ data class Book(
     val publisher: String? = null,
     val publishedYear: Int? = null,
     val language: String? = null,
-    val isbn: String? = null
+    val isbn: String? = null,
+    // TTS position tracking
+    val ttsPosition: Int = 0, // Character position in text content for TTS resume
+    val ttsLastPlayed: Long = 0 // Timestamp of last TTS playback
 ) : Parcelable

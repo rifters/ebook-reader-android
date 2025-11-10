@@ -211,4 +211,23 @@
     <string name="sftp">SFTP</string>
     <string name="connect_cloud">Connect Cloud Storage</string>
     <string name="cloud_provider">Cloud Provider</string>
+    
+    <!-- TTS Controls -->
+    <string name="tts_controls">TTS Controls</string>
+    <string name="tts_speed">Speed</string>
+    <string name="reset">Reset</string>
+    <string name="close">Close</string>
+    
+    <!-- TTS Replacements -->
+    <string name="tts_replacements">TTS Replacements</string>
+    <string name="tts_replacements_enabled">Enable TTS Replacements</string>
+    <string name="tts_replacements_description">Replace text during TTS playback for better pronunciation</string>
+    <string name="add_replacement">Add Replacement</string>
+    <string name="edit_replacement">Edit Replacement</string>
+    <string name="find_text">Find Text</string>
+    <string name="replace_with">Replace With</string>
+    <string name="regex_pattern">Regex Pattern (prefix with *)</string>
+    <string name="no_replacements">No replacements configured</string>
+    <string name="manage_replacements">Manage Replacements</string>
+    <string name="replacement_examples">Examples:\nit\'s → it is\ncan\'t → cannot\n*[?!] → . (regex)</string>
 </resources>

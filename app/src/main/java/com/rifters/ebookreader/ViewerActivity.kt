@@ -23,6 +23,8 @@ import com.rifters.ebookreader.model.Bookmark
 import com.rifters.ebookreader.model.ReadingPreferences
 import com.rifters.ebookreader.util.FileValidator
 import com.rifters.ebookreader.util.PreferencesManager
+import com.rifters.ebookreader.util.TtsReplacementProcessor
+import com.rifters.ebookreader.util.TtsTextSplitter
 import com.rifters.ebookreader.viewmodel.BookViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -61,6 +63,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var isTtsInitialized = false
     private var isTtsPlaying = false
     private var currentTextContent: String = ""
+    private var ttsTextChunks: List<TtsTextSplitter.TextChunk> = emptyList()
+    private var currentTtsChunkIndex: Int = 0
+    private var ttsSavedPosition: Int = 0
     
     // Table of Contents
     private var tableOfContents: List<com.rifters.ebookreader.model.TableOfContentsItem> = emptyList()
@@ -135,8 +140,26 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     override fun onDone(utteranceId: String?) {
                         android.util.Log.d("ViewerActivity", "TTS onDone utterance: $utteranceId")
                         runOnUiThread {
-                            isTtsPlaying = false
-                            updateTtsButtons()
+                            // Move to next chunk if still playing
+                            if (isTtsPlaying) {
+                                currentTtsChunkIndex++
+                                if (currentTtsChunkIndex < ttsTextChunks.size) {
+                                    // Continue to next chunk with a brief pause
+                                    binding.root.postDelayed({
+                                        if (isTtsPlaying) {
+                                            speakCurrentChunk()
+                                        }
+                                    }, 300) // 300ms pause between chunks for natural reading
+                                } else {
+                                    // Finished all chunks
+                                    isTtsPlaying = false
+                                    updateTtsButtons()
+                                    hideTtsProgress()
+                                    Toast.makeText(this@ViewerActivity, "Finished reading", Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                updateTtsButtons()
+                            }
                         }
                     }
                     
@@ -262,6 +285,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 toggleTTS()
                 true
             }
+            R.id.action_tts_controls -> {
+                showTtsControls()
+                true
+            }
             R.id.action_toggle_night_mode -> {
                 toggleNightMode()
                 true
@@ -350,12 +377,24 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
         
-        // Extract plain text from HTML if needed
+        // Extract plain text from HTML with improved formatting and apply TTS replacements
+        val replacementsEnabled = preferencesManager.isTtsReplacementsEnabled()
+        val replacementsJson = preferencesManager.getTtsReplacements()
+        
         val textToSpeak = if (currentTextContent.contains("<")) {
-            // It's HTML content, extract text
-            android.text.Html.fromHtml(currentTextContent, android.text.Html.FROM_HTML_MODE_LEGACY).toString()
+            TtsTextSplitter.extractTextFromHtml(
+                currentTextContent,
+                applyReplacements = true,
+                replacementsJson = replacementsJson,
+                replacementsEnabled = replacementsEnabled
+            )
         } else {
-            currentTextContent
+            // For plain text, still apply replacements
+            if (replacementsEnabled) {
+                TtsReplacementProcessor.applyReplacements(currentTextContent, replacementsJson, replacementsEnabled)
+            } else {
+                currentTextContent
+            }
         }
         
         if (textToSpeak.trim().isEmpty()) {
@@ -363,7 +402,41 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
         
-        android.util.Log.d("ViewerActivity", "Attempting to speak text of length: ${textToSpeak.length}")
+        // Split text into paragraphs for natural reading
+        if (ttsTextChunks.isEmpty()) {
+            ttsTextChunks = TtsTextSplitter.splitIntoParagraphs(textToSpeak)
+            
+            // Restore saved TTS position if available
+            if (ttsSavedPosition > 0) {
+                currentTtsChunkIndex = TtsTextSplitter.findChunkAtPosition(ttsTextChunks, ttsSavedPosition)
+                android.util.Log.d("ViewerActivity", "Resuming TTS from saved position $ttsSavedPosition (chunk $currentTtsChunkIndex)")
+                Toast.makeText(this, "Resuming from saved position", Toast.LENGTH_SHORT).show()
+            } else {
+                currentTtsChunkIndex = 0
+            }
+        }
+        
+        if (ttsTextChunks.isEmpty()) {
+            Toast.makeText(this, "Could not split text for TTS reading", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        android.util.Log.d("ViewerActivity", "Playing TTS chunk $currentTtsChunkIndex of ${ttsTextChunks.size}")
+        
+        speakCurrentChunk()
+    }
+    
+    private fun speakCurrentChunk() {
+        if (currentTtsChunkIndex >= ttsTextChunks.size) {
+            // Finished reading all chunks
+            android.util.Log.d("ViewerActivity", "Finished reading all TTS chunks")
+            isTtsPlaying = false
+            updateTtsButtons()
+            Toast.makeText(this, "Finished reading", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        val chunk = ttsTextChunks[currentTtsChunkIndex]
         
         // Get TTS settings from preferences
         val ttsRate = preferencesManager.getTtsRate()
@@ -374,18 +447,19 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         
         // Use Bundle for API 21+
         val params = android.os.Bundle()
-        params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "tts_id")
+        params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "tts_chunk_$currentTtsChunkIndex")
         
-        val result = textToSpeech?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, params, "tts_id")
+        val result = textToSpeech?.speak(chunk.text, TextToSpeech.QUEUE_FLUSH, params, "tts_chunk_$currentTtsChunkIndex")
         
-        android.util.Log.d("ViewerActivity", "TTS speak result: $result")
+        android.util.Log.d("ViewerActivity", "TTS speak result for chunk $currentTtsChunkIndex: $result")
         
         when (result) {
             TextToSpeech.SUCCESS -> {
-                android.util.Log.d("ViewerActivity", "TTS started successfully")
-                // Don't set isTtsPlaying here - wait for onStart callback
-                // But update buttons to show that we're trying
+                android.util.Log.d("ViewerActivity", "TTS chunk $currentTtsChunkIndex started successfully")
+                // Save current position
+                saveTtsPosition(chunk.startPosition)
                 updateTtsButtons()
+                updateTtsProgress()
             }
             TextToSpeech.ERROR -> {
                 android.util.Log.e("ViewerActivity", "TTS speak returned ERROR")
@@ -398,11 +472,68 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
     
+    private fun saveTtsPosition(position: Int) {
+        ttsSavedPosition = position
+        currentBook?.let { book ->
+            lifecycleScope.launch(Dispatchers.IO) {
+                val updatedBook = book.copy(
+                    ttsPosition = position,
+                    ttsLastPlayed = System.currentTimeMillis()
+                )
+                bookViewModel.updateBook(updatedBook)
+                android.util.Log.d("ViewerActivity", "Saved TTS position: $position")
+            }
+        }
+    }
+    
     private fun pauseTTS() {
         textToSpeech?.stop()
         isTtsPlaying = false
+        // Reset chunks so they'll be regenerated on next play
+        ttsTextChunks = emptyList()
+        currentTtsChunkIndex = 0
         updateTtsButtons()
+        hideTtsProgress()
         Toast.makeText(this, "TTS stopped", Toast.LENGTH_SHORT).show()
+    }
+    
+    private fun updateTtsProgress() {
+        if (ttsTextChunks.isEmpty()) {
+            return
+        }
+        
+        val currentChunk = ttsTextChunks[currentTtsChunkIndex]
+        val progressPercentage = ((currentTtsChunkIndex + 1) * 100 / ttsTextChunks.size)
+        
+        // Show progress with text preview (first 50 chars)
+        val preview = if (currentChunk.text.length > 50) {
+            currentChunk.text.substring(0, 50) + "..."
+        } else {
+            currentChunk.text
+        }
+        
+        val progressText = "🔊 $progressPercentage% • $preview"
+        binding.pageIndicator.text = progressText
+        binding.pageIndicator.visibility = View.VISIBLE
+    }
+    
+    private fun hideTtsProgress() {
+        // Only hide if showing TTS progress (starts with speaker emoji)
+        if (binding.pageIndicator.text.toString().startsWith("🔊")) {
+            binding.pageIndicator.visibility = View.GONE
+        }
+    }
+    
+    private fun showTtsControls() {
+        val bottomSheet = TtsControlsBottomSheet.newInstance()
+        bottomSheet.setOnSettingsChangedListener { rate, pitch ->
+            // Apply settings in real-time if TTS is playing
+            if (isTtsPlaying) {
+                textToSpeech?.setSpeechRate(rate)
+                textToSpeech?.setPitch(pitch)
+            }
+        }
+        bottomSheet.show(supportFragmentManager, TtsControlsBottomSheet.TAG)
     }
     
     private fun setupBottomBar() {
@@ -420,6 +551,11 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         
         binding.btnTtsPlay.setOnClickListener {
             toggleTTS()
+        }
+        
+        binding.btnTtsPlay.setOnLongClickListener {
+            showTtsControls()
+            true
         }
     }
     
@@ -440,6 +576,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 
                 currentPage = currentBook?.currentPage ?: 0
                 currentProgressPercent = currentBook?.progressPercentage ?: 0f
+                ttsSavedPosition = currentBook?.ttsPosition ?: 0
                 loadBook(bookPath)
             }
         } else {

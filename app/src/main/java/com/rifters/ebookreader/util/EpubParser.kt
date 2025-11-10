@@ -533,23 +533,117 @@ class EpubParser(private val epubFile: File) {
      * Extract cover image data from EPUB and save to file
      */
     fun extractCoverImage(outputFile: File): Boolean {
+        var zip: ZipFile? = null
         try {
-            zipFile = ZipFile(epubFile)
+            // Open a new ZipFile instance for this operation
+            zip = ZipFile(epubFile)
             
-            val coverPath = extractCoverImagePath()
-            if (coverPath == null) {
-                Log.w(TAG, "No cover image found in EPUB")
+            // Step 1: Find the OPF file location
+            val opfPath = findOpfPath() ?: run {
+                Log.w(TAG, "No OPF file found in EPUB")
                 return false
             }
             
-            // Read cover image bytes
-            val entry = zipFile?.getEntry(coverPath)
+            val opfBasePath = if (opfPath.contains("/")) {
+                opfPath.substring(0, opfPath.lastIndexOf("/") + 1)
+            } else {
+                ""
+            }
+            
+            // Step 2: Parse the OPF file to get manifest
+            val opfContent = readFileFromZip(opfPath) ?: run {
+                Log.w(TAG, "Could not read OPF file")
+                return false
+            }
+            val (_, _, manifest, _) = parseOpf(opfContent)
+            
+            // Step 3: Look for cover in multiple ways
+            var coverHref: String? = null
+            
+            // Method 1: Look for metadata cover reference
+            val coverId = extractCoverIdFromOpf(opfContent)
+            if (coverId != null) {
+                val coverItem = manifest[coverId]
+                if (coverItem != null && coverItem.mediaType.startsWith("image/")) {
+                    coverHref = coverItem.href
+                }
+            }
+            
+            // Method 2: Look for items with "cover" in the ID or href
+            if (coverHref == null) {
+                val coverItem = manifest.values.find { item ->
+                    item.mediaType.startsWith("image/") && 
+                    (item.id.contains("cover", ignoreCase = true) || 
+                     item.href.contains("cover", ignoreCase = true))
+                }
+                if (coverItem != null) {
+                    coverHref = coverItem.href
+                }
+            }
+            
+            // Method 3: Look for first image as fallback
+            if (coverHref == null) {
+                val firstImage = manifest.values.find { item ->
+                    item.mediaType.startsWith("image/") &&
+                    (item.href.endsWith(".jpg", ignoreCase = true) ||
+                     item.href.endsWith(".jpeg", ignoreCase = true) ||
+                     item.href.endsWith(".png", ignoreCase = true))
+                }
+                if (firstImage != null) {
+                    coverHref = firstImage.href
+                }
+            }
+            
+            if (coverHref == null) {
+                Log.w(TAG, "No cover image found in EPUB manifest")
+                return false
+            }
+            
+            Log.d(TAG, "Found cover href: $coverHref, trying to locate in ZIP...")
+            
+            // Step 4: Try multiple path variations to find the cover image
+            // Based on LibreraReader's approach - try exact match, with base path, and ends-with
+            var entry = zip.getEntry(coverHref)
+            if (entry == null && opfBasePath.isNotEmpty()) {
+                // Try with OPF base path
+                entry = zip.getEntry(opfBasePath + coverHref)
+                Log.d(TAG, "Trying with base path: ${opfBasePath + coverHref}")
+            }
             if (entry == null) {
-                Log.w(TAG, "Cover image entry not found: $coverPath")
+                // Try to find entry that ends with the cover href
+                val entries = zip.entries()
+                while (entries.hasMoreElements()) {
+                    val e = entries.nextElement()
+                    if (e.name.endsWith(coverHref)) {
+                        entry = e
+                        Log.d(TAG, "Found via ends-with match: ${e.name}")
+                        break
+                    }
+                }
+            }
+            
+            if (entry == null) {
+                // Last resort: search for any entry with "cover" in the name
+                Log.d(TAG, "Trying fallback: searching for any cover image")
+                val entries = zip.entries()
+                while (entries.hasMoreElements()) {
+                    val e = entries.nextElement()
+                    val name = e.name.lowercase()
+                    if (name.contains("cover") && 
+                        (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png"))) {
+                        entry = e
+                        Log.d(TAG, "Found via fallback search: ${e.name}")
+                        break
+                    }
+                }
+            }
+            
+            if (entry == null) {
+                Log.w(TAG, "Cover image entry not found in ZIP after trying all methods. Cover href was: $coverHref")
                 return false
             }
             
-            val inputStream = zipFile?.getInputStream(entry)
+            val inputStream = zip.getInputStream(entry)
             if (inputStream == null) {
                 Log.w(TAG, "Could not open cover image stream")
                 return false
@@ -567,7 +661,7 @@ class EpubParser(private val epubFile: File) {
             Log.e(TAG, "Error extracting cover image", e)
             return false
         } finally {
-            zipFile?.close()
+            zip?.close()
         }
     }
     

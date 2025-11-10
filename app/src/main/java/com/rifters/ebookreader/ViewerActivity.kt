@@ -95,8 +95,12 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
     
     override fun onInit(status: Int) {
+        android.util.Log.d("ViewerActivity", "TTS onInit called with status: $status")
+        
         if (status == TextToSpeech.SUCCESS) {
             val result = textToSpeech?.setLanguage(Locale.getDefault())
+            android.util.Log.d("ViewerActivity", "TTS setLanguage result: $result")
+            
             isTtsInitialized = result != TextToSpeech.LANG_MISSING_DATA && 
                               result != TextToSpeech.LANG_NOT_SUPPORTED
             if (!isTtsInitialized) {
@@ -106,9 +110,13 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                                   englishResult != TextToSpeech.LANG_NOT_SUPPORTED
                 
                 if (!isTtsInitialized) {
-                    Toast.makeText(this, "TTS language not supported. Please install TTS data from device settings.", Toast.LENGTH_LONG).show()
+                    runOnUiThread {
+                        Toast.makeText(this, "TTS language not supported. Please install TTS data:\nSettings > Accessibility > Text-to-speech", Toast.LENGTH_LONG).show()
+                    }
                 } else {
-                    Toast.makeText(this, "Using English TTS (default language unavailable)", Toast.LENGTH_SHORT).show()
+                    runOnUiThread {
+                        Toast.makeText(this, "Using English TTS (default language unavailable)", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
             
@@ -116,6 +124,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 // Set up utterance progress listener for text highlighting
                 textToSpeech?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {
+                        android.util.Log.d("ViewerActivity", "TTS onStart utterance: $utteranceId")
                         runOnUiThread {
                             // TTS started speaking
                             isTtsPlaying = true
@@ -124,17 +133,39 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     }
                     
                     override fun onDone(utteranceId: String?) {
+                        android.util.Log.d("ViewerActivity", "TTS onDone utterance: $utteranceId")
                         runOnUiThread {
                             isTtsPlaying = false
                             updateTtsButtons()
                         }
                     }
                     
+                    @Deprecated("Deprecated in Java")
                     override fun onError(utteranceId: String?) {
+                        android.util.Log.e("ViewerActivity", "TTS onError (deprecated) utterance: $utteranceId")
                         runOnUiThread {
                             isTtsPlaying = false
                             updateTtsButtons()
-                            Toast.makeText(this@ViewerActivity, "TTS error occurred", Toast.LENGTH_SHORT).show()
+                            showTtsError("TTS error occurred. The TTS engine may not be installed or configured properly.")
+                        }
+                    }
+                    
+                    override fun onError(utteranceId: String?, errorCode: Int) {
+                        android.util.Log.e("ViewerActivity", "TTS onError utterance: $utteranceId, errorCode: $errorCode")
+                        runOnUiThread {
+                            isTtsPlaying = false
+                            updateTtsButtons()
+                            val errorMsg = when (errorCode) {
+                                TextToSpeech.ERROR_SYNTHESIS -> "TTS synthesis error. Try selecting a different TTS engine in Settings."
+                                TextToSpeech.ERROR_SERVICE -> "TTS service error. The TTS engine may have crashed."
+                                TextToSpeech.ERROR_OUTPUT -> "TTS output error. Check audio settings."
+                                TextToSpeech.ERROR_NETWORK -> "TTS network error. Check internet connection."
+                                TextToSpeech.ERROR_NETWORK_TIMEOUT -> "TTS network timeout. Try again."
+                                TextToSpeech.ERROR_INVALID_REQUEST -> "TTS invalid request. The text may be too long or invalid."
+                                TextToSpeech.ERROR_NOT_INSTALLED_YET -> "TTS engine not installed. Please install a TTS engine from Play Store."
+                                else -> "TTS error (code: $errorCode). Try installing Google Text-to-speech from Play Store."
+                            }
+                            showTtsError(errorMsg)
                         }
                     }
                     
@@ -148,13 +179,30 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 })
                 
                 // Update UI to enable TTS buttons now that TTS is ready
+                runOnUiThread {
+                    updateTtsButtons()
+                    android.util.Log.d("ViewerActivity", "TTS initialized successfully")
+                }
+            }
+        } else if (status == TextToSpeech.ERROR) {
+            android.util.Log.e("ViewerActivity", "TTS initialization failed with ERROR status")
+            runOnUiThread {
+                isTtsInitialized = false
                 updateTtsButtons()
+                showTtsError("TTS initialization failed. Please install a TTS engine:\n\n1. Open Play Store\n2. Search for 'Google Text-to-speech'\n3. Install and enable it")
             }
         } else {
-            Toast.makeText(this, "TTS initialization failed. Please check TTS settings in device.", Toast.LENGTH_LONG).show()
-            isTtsInitialized = false
-            updateTtsButtons()
+            android.util.Log.e("ViewerActivity", "TTS initialization failed with unknown status: $status")
+            runOnUiThread {
+                isTtsInitialized = false
+                updateTtsButtons()
+                showTtsError("TTS initialization failed with unknown error. Please check device settings.")
+            }
         }
+    }
+    
+    private fun showTtsError(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
     
     private fun highlightSpokenText(start: Int, end: Int) {
@@ -272,14 +320,28 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
     
     private fun playTTS() {
-        // Check if TTS is properly initialized
+        android.util.Log.d("ViewerActivity", "playTTS called - textToSpeech: ${textToSpeech != null}, isTtsInitialized: $isTtsInitialized")
+        
+        // Check if TTS engine exists
         if (textToSpeech == null) {
-            Toast.makeText(this, "TTS engine not available. Please restart the app or check device settings.", Toast.LENGTH_LONG).show()
+            android.util.Log.e("ViewerActivity", "TTS engine is null, attempting to reinitialize")
+            // Try to reinitialize TTS
+            setupTTS()
+            Toast.makeText(this, "TTS engine not available. Initializing... Please try again in a moment.", Toast.LENGTH_LONG).show()
             return
         }
         
+        // If not initialized, wait for initialization
         if (!isTtsInitialized) {
-            Toast.makeText(this, "TTS not ready. Please wait a moment or check TTS settings in device.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "TTS is initializing, please wait...", Toast.LENGTH_SHORT).show()
+            // Set up a delayed retry inspired by LibreraReader's approach
+            binding.root.postDelayed({
+                if (isTtsInitialized) {
+                    playTTS()
+                } else {
+                    Toast.makeText(this, "TTS initialization is taking longer than expected.\n\nTo fix:\n1. Go to Settings > Accessibility > Text-to-speech\n2. Install 'Google Text-to-speech' from Play Store\n3. Set it as preferred engine", Toast.LENGTH_LONG).show()
+                }
+            }, 1500)
             return
         }
         
@@ -301,6 +363,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
         
+        android.util.Log.d("ViewerActivity", "Attempting to speak text of length: ${textToSpeak.length}")
+        
         // Get TTS settings from preferences
         val ttsRate = preferencesManager.getTtsRate()
         val ttsPitch = preferencesManager.getTtsPitch()
@@ -314,13 +378,23 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         
         val result = textToSpeech?.speak(textToSpeak, TextToSpeech.QUEUE_FLUSH, params, "tts_id")
         
-        if (result == TextToSpeech.SUCCESS) {
-            isTtsPlaying = true
-            updateTtsButtons()
-        } else if (result == TextToSpeech.ERROR) {
-            Toast.makeText(this, "TTS engine error. Try: 1) Restart app 2) Install TTS data in Settings > Accessibility > Text-to-speech", Toast.LENGTH_LONG).show()
-        } else {
-            Toast.makeText(this, "Failed to start TTS. Please check TTS settings in device.", Toast.LENGTH_LONG).show()
+        android.util.Log.d("ViewerActivity", "TTS speak result: $result")
+        
+        when (result) {
+            TextToSpeech.SUCCESS -> {
+                android.util.Log.d("ViewerActivity", "TTS started successfully")
+                // Don't set isTtsPlaying here - wait for onStart callback
+                // But update buttons to show that we're trying
+                updateTtsButtons()
+            }
+            TextToSpeech.ERROR -> {
+                android.util.Log.e("ViewerActivity", "TTS speak returned ERROR")
+                showTtsError("TTS engine error. Please try:\n\n1. Go to Settings > Apps > All apps\n2. Find your TTS engine (e.g., Google Text-to-speech)\n3. Clear cache and data\n4. Restart this app\n\nOr install a different TTS engine from Play Store")
+            }
+            else -> {
+                android.util.Log.e("ViewerActivity", "TTS speak returned unexpected result: $result")
+                showTtsError("Failed to start TTS (code: $result).\n\nPlease check:\n1. TTS engine is installed and enabled\n2. Audio output is working\n3. Device settings > Accessibility > Text-to-speech")
+            }
         }
     }
     

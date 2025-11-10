@@ -284,6 +284,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 toggleTTS()
                 true
             }
+            R.id.action_tts_controls -> {
+                showTtsControls()
+                true
+            }
             R.id.action_toggle_night_mode -> {
                 toggleNightMode()
                 true

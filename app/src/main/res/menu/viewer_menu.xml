@@ -33,6 +33,12 @@
         app:showAsAction="ifRoom" />
     
     <item
+        android:id="@+id/action_tts_controls"
+        android:icon="@android:drawable/ic_menu_manage"
+        android:title="@string/tts_controls"
+        app:showAsAction="never" />
+    
+    <item
         android:id="@+id/action_toggle_night_mode"
         android:icon="@android:drawable/ic_menu_day"
         android:title="@string/toggle_night_mode"

@@ -23,6 +23,7 @@ import com.rifters.ebookreader.model.Bookmark
 import com.rifters.ebookreader.model.ReadingPreferences
 import com.rifters.ebookreader.util.FileValidator
 import com.rifters.ebookreader.util.PreferencesManager
+import com.rifters.ebookreader.util.TtsReplacementProcessor
 import com.rifters.ebookreader.util.TtsTextSplitter
 import com.rifters.ebookreader.viewmodel.BookViewModel
 import kotlinx.coroutines.Dispatchers
@@ -376,11 +377,24 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
         
-        // Extract plain text from HTML with improved formatting
+        // Extract plain text from HTML with improved formatting and apply TTS replacements
+        val replacementsEnabled = preferencesManager.isTtsReplacementsEnabled()
+        val replacementsJson = preferencesManager.getTtsReplacements()
+        
         val textToSpeak = if (currentTextContent.contains("<")) {
-            TtsTextSplitter.extractTextFromHtml(currentTextContent)
+            TtsTextSplitter.extractTextFromHtml(
+                currentTextContent,
+                applyReplacements = true,
+                replacementsJson = replacementsJson,
+                replacementsEnabled = replacementsEnabled
+            )
         } else {
-            currentTextContent
+            // For plain text, still apply replacements
+            if (replacementsEnabled) {
+                TtsReplacementProcessor.applyReplacements(currentTextContent, replacementsJson, replacementsEnabled)
+            } else {
+                currentTextContent
+            }
         }
         
         if (textToSpeak.trim().isEmpty()) {

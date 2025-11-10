@@ -38,12 +38,15 @@ class TtsControlsBottomSheet : BottomSheetDialogFragment() {
         // Load current TTS settings
         val ttsRate = preferencesManager.getTtsRate()
         val ttsPitch = preferencesManager.getTtsPitch()
+        val replacementsEnabled = preferencesManager.isTtsReplacementsEnabled()
         
         binding.ttsRateSlider.value = ttsRate
         binding.ttsRateValue.text = String.format("%.1fx", ttsRate)
         
         binding.ttsPitchSlider.value = ttsPitch
         binding.ttsPitchValue.text = String.format("%.1fx", ttsPitch)
+        
+        binding.switchReplacements.isChecked = replacementsEnabled
     }
     
     private fun setupListeners() {
@@ -65,6 +68,16 @@ class TtsControlsBottomSheet : BottomSheetDialogFragment() {
             }
         }
         
+        // Replacements toggle
+        binding.switchReplacements.setOnCheckedChangeListener { _, isChecked ->
+            preferencesManager.setTtsReplacementsEnabled(isChecked)
+        }
+        
+        // Manage replacements button
+        binding.btnManageReplacements.setOnClickListener {
+            showReplacementsDialog()
+        }
+        
         // Reset button
         binding.btnReset.setOnClickListener {
             binding.ttsRateSlider.value = 1.0f
@@ -75,6 +88,75 @@ class TtsControlsBottomSheet : BottomSheetDialogFragment() {
         binding.btnClose.setOnClickListener {
             dismiss()
         }
+    }
+    
+    private fun showReplacementsDialog() {
+        val replacements = com.rifters.ebookreader.util.TtsReplacementProcessor.getReplacementsList(
+            preferencesManager.getTtsReplacements()
+        )
+        
+        val items = replacements.map { "${it.first} → ${it.second}" }.toTypedArray()
+        
+        android.app.AlertDialog.Builder(requireContext())
+            .setTitle(R.string.tts_replacements)
+            .setItems(items) { _, which ->
+                // Show edit dialog for selected replacement
+                val selected = replacements[which]
+                showEditReplacementDialog(selected.first, selected.second)
+            }
+            .setNeutralButton(R.string.add_replacement) { _, _ ->
+                showEditReplacementDialog("", "")
+            }
+            .setPositiveButton(R.string.close, null)
+            .show()
+    }
+    
+    private fun showEditReplacementDialog(key: String, value: String) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_edit_replacement, null)
+        val editKey = dialogView.findViewById<android.widget.EditText>(R.id.editFindText)
+        val editValue = dialogView.findViewById<android.widget.EditText>(R.id.editReplaceWith)
+        
+        editKey.setText(key)
+        editValue.setText(value)
+        
+        val builder = android.app.AlertDialog.Builder(requireContext())
+            .setTitle(if (key.isEmpty()) R.string.add_replacement else R.string.edit_replacement)
+            .setView(dialogView)
+            .setPositiveButton(R.string.save) { _, _ ->
+                val newKey = editKey.text.toString()
+                val newValue = editValue.text.toString()
+                
+                if (newKey.isNotEmpty()) {
+                    var replacementsJson = preferencesManager.getTtsReplacements()
+                    
+                    // Remove old key if it changed
+                    if (key.isNotEmpty() && key != newKey) {
+                        replacementsJson = com.rifters.ebookreader.util.TtsReplacementProcessor.removeReplacement(replacementsJson, key)
+                    }
+                    
+                    // Add/update new key
+                    replacementsJson = com.rifters.ebookreader.util.TtsReplacementProcessor.addReplacement(
+                        replacementsJson, newKey, newValue
+                    )
+                    
+                    preferencesManager.setTtsReplacements(replacementsJson)
+                    android.widget.Toast.makeText(requireContext(), "Replacement saved", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+        
+        // Add delete button if editing existing
+        if (key.isNotEmpty()) {
+            builder.setNeutralButton("Delete") { _, _ ->
+                val replacementsJson = com.rifters.ebookreader.util.TtsReplacementProcessor.removeReplacement(
+                    preferencesManager.getTtsReplacements(), key
+                )
+                preferencesManager.setTtsReplacements(replacementsJson)
+                android.widget.Toast.makeText(requireContext(), "Replacement deleted", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        builder.show()
     }
     
     fun setOnSettingsChangedListener(listener: (Float, Float) -> Unit) {

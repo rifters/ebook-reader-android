@@ -13,10 +13,21 @@ object TtsTextSplitter {
     
     /**
      * Extract plain text from HTML content with better formatting preservation.
+     * Optionally apply TTS replacements.
      */
-    fun extractTextFromHtml(html: String): String {
+    fun extractTextFromHtml(
+        html: String, 
+        applyReplacements: Boolean = false,
+        replacementsJson: String = "",
+        replacementsEnabled: Boolean = true
+    ): String {
         if (!html.contains("<")) {
-            return html
+            val text = html
+            return if (applyReplacements && replacementsEnabled) {
+                TtsReplacementProcessor.applyReplacements(text, replacementsJson, replacementsEnabled)
+            } else {
+                text
+            }
         }
         
         // Pre-process HTML to improve text extraction
@@ -28,13 +39,20 @@ object TtsTextSplitter {
             .replace(Regex("</(span|a|strong|em|b|i)>", RegexOption.IGNORE_CASE), " ")
         
         // Convert HTML to plain text
-        val text = Html.fromHtml(processedHtml, Html.FROM_HTML_MODE_LEGACY).toString()
+        var text = Html.fromHtml(processedHtml, Html.FROM_HTML_MODE_LEGACY).toString()
         
         // Clean up excessive whitespace while preserving paragraph breaks
-        return text
+        text = text
             .replace(Regex("[ \t]+"), " ") // Multiple spaces to single space
             .replace(Regex("\n{3,}"), "\n\n") // Multiple newlines to double newline
             .trim()
+        
+        // Apply TTS replacements if requested
+        if (applyReplacements && replacementsEnabled) {
+            text = TtsReplacementProcessor.applyReplacements(text, replacementsJson, replacementsEnabled)
+        }
+        
+        return text
     }
     
     /**

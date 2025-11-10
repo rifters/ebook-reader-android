@@ -30,7 +30,7 @@ import com.rifters.ebookreader.model.ReadingListItem
         ReadingList::class,
         ReadingListItem::class
     ], 
-    version = 6, 
+    version = 7, 
     exportSchema = false
 )
 abstract class BookDatabase : RoomDatabase() {

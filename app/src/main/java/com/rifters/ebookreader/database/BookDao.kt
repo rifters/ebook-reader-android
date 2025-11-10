@@ -51,6 +51,9 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE filePath = :filePath")
     suspend fun getBookByPath(filePath: String): Book?
     
+    @Query("SELECT * FROM books ORDER BY title ASC")
+    suspend fun getAllBooksSync(): List<Book>
+    
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBook(book: Book): Long
     

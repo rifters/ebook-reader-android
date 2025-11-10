@@ -100,8 +100,19 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             isTtsInitialized = result != TextToSpeech.LANG_MISSING_DATA && 
                               result != TextToSpeech.LANG_NOT_SUPPORTED
             if (!isTtsInitialized) {
-                Toast.makeText(this, "TTS language not supported", Toast.LENGTH_SHORT).show()
-            } else {
+                // Try falling back to English if default language is not available
+                val englishResult = textToSpeech?.setLanguage(Locale.ENGLISH)
+                isTtsInitialized = englishResult != TextToSpeech.LANG_MISSING_DATA && 
+                                  englishResult != TextToSpeech.LANG_NOT_SUPPORTED
+                
+                if (!isTtsInitialized) {
+                    Toast.makeText(this, "TTS language not supported. Please install TTS data from device settings.", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(this, "Using English TTS (default language unavailable)", Toast.LENGTH_SHORT).show()
+                }
+            }
+            
+            if (isTtsInitialized) {
                 // Set up utterance progress listener for text highlighting
                 textToSpeech?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {
@@ -140,7 +151,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 updateTtsButtons()
             }
         } else {
-            Toast.makeText(this, "TTS initialization failed", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "TTS initialization failed. Please check TTS settings in device.", Toast.LENGTH_LONG).show()
+            isTtsInitialized = false
+            updateTtsButtons()
         }
     }
     
@@ -261,17 +274,17 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun playTTS() {
         // Check if TTS is properly initialized
         if (textToSpeech == null) {
-            Toast.makeText(this, "TTS engine not available", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "TTS engine not available. Please restart the app or check device settings.", Toast.LENGTH_LONG).show()
             return
         }
         
         if (!isTtsInitialized) {
-            Toast.makeText(this, "TTS is still initializing, please wait...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "TTS not ready. Please wait a moment or check TTS settings in device.", Toast.LENGTH_LONG).show()
             return
         }
         
         if (currentTextContent.isEmpty()) {
-            Toast.makeText(this, "No text content available for this format", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "No text content available for this format (image-based formats not supported)", Toast.LENGTH_SHORT).show()
             return
         }
         
@@ -284,7 +297,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
         
         if (textToSpeak.trim().isEmpty()) {
-            Toast.makeText(this, "Could not extract readable text from content", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Could not extract readable text from content. The file may be empty or corrupted.", Toast.LENGTH_LONG).show()
             return
         }
         
@@ -305,9 +318,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             isTtsPlaying = true
             updateTtsButtons()
         } else if (result == TextToSpeech.ERROR) {
-            Toast.makeText(this, "TTS engine error - please check TTS settings in device", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "TTS engine error. Try: 1) Restart app 2) Install TTS data in Settings > Accessibility > Text-to-speech", Toast.LENGTH_LONG).show()
         } else {
-            Toast.makeText(this, "Failed to start TTS", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Failed to start TTS. Please check TTS settings in device.", Toast.LENGTH_LONG).show()
         }
     }
     

@@ -35,9 +35,19 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:text="@string/no_books"
+        android:text="@string/no_books_in_collection"
         android:textSize="16sp"
         android:visibility="gone"
         tools:visibility="visible" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabAddBook"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:contentDescription="@string/add_book_to_collection"
+        app:srcCompat="@drawable/ic_add"
+        style="@style/Widget.App.FloatingActionButton" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

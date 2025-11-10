@@ -286,6 +286,21 @@ class MainActivity : AppCompatActivity() {
                     else -> contentResolver.getType(uri) ?: "application/octet-stream"
                 }
                 
+                // Extract cover for EPUB files
+                var coverImagePath: String? = null
+                if (fileExtension == "epub") {
+                    try {
+                        val epubParser = com.rifters.ebookreader.util.EpubParser(file)
+                        val coverFile = File(storageDir, "cover_${System.currentTimeMillis()}.jpg")
+                        if (epubParser.extractCoverImage(coverFile)) {
+                            coverImagePath = coverFile.absolutePath
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("MainActivity", "Failed to extract EPUB cover", e)
+                        // Continue without cover - not critical
+                    }
+                }
+                
                 // Create book entry
                 val book = Book(
                     title = fileName.substringBeforeLast('.'),
@@ -293,7 +308,8 @@ class MainActivity : AppCompatActivity() {
                     filePath = file.absolutePath,
                     fileSize = file.length(),
                     mimeType = mimeType,
-                    dateAdded = System.currentTimeMillis()
+                    dateAdded = System.currentTimeMillis(),
+                    coverImagePath = coverImagePath
                 )
                 
                 bookViewModel.insertBook(book)

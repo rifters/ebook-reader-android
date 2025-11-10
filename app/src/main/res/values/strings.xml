@@ -117,6 +117,9 @@
     <string name="manage_collections">Manage Collections</string>
     <string name="select_collections">Select Collections</string>
     <string name="collection_name_required">Collection name is required</string>
+    <string name="no_books_in_collection">No books in this collection yet. Tap + to add books.</string>
+    <string name="add_book_to_collection">Add books to collection</string>
+    <string name="select_books_to_add">Select books to add</string>
     
     <!-- Sync -->
     <string name="sync">Sync</string>

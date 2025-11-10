@@ -3,11 +3,13 @@ package com.rifters.ebookreader
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.rifters.ebookreader.databinding.ActivityCollectionBooksBinding
+import com.rifters.ebookreader.viewmodel.BookViewModel
 import com.rifters.ebookreader.viewmodel.CollectionViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -17,6 +19,7 @@ class CollectionBooksActivity : AppCompatActivity() {
     
     private lateinit var binding: ActivityCollectionBooksBinding
     private lateinit var collectionViewModel: CollectionViewModel
+    private lateinit var bookViewModel: BookViewModel
     private lateinit var bookAdapter: BookAdapter
     private var collectionId: Long = -1
     
@@ -31,6 +34,7 @@ class CollectionBooksActivity : AppCompatActivity() {
         setupToolbar(collectionName)
         setupRecyclerView()
         setupViewModel()
+        setupFab()
         loadCollectionBooks()
     }
     
@@ -58,6 +62,72 @@ class CollectionBooksActivity : AppCompatActivity() {
     
     private fun setupViewModel() {
         collectionViewModel = ViewModelProvider(this)[CollectionViewModel::class.java]
+        bookViewModel = ViewModelProvider(this)[BookViewModel::class.java]
+    }
+    
+    private fun setupFab() {
+        binding.fabAddBook.setOnClickListener {
+            showAddBookDialog()
+        }
+    }
+    
+    private fun showAddBookDialog() {
+        if (collectionId == -1L) {
+            return
+        }
+        
+        lifecycleScope.launch(Dispatchers.IO) {
+            // Get all books
+            val allBooks = bookViewModel.getAllBooksSync()
+            
+            // Get books already in this collection
+            val collectionWithBooks = collectionViewModel.getCollectionWithBooks(collectionId)
+            val booksInCollection = collectionWithBooks?.books?.map { it.id } ?: emptyList()
+            
+            // Filter to get books not in collection
+            val availableBooks = allBooks.filter { it.id !in booksInCollection }
+            
+            withContext(Dispatchers.Main) {
+                if (availableBooks.isEmpty()) {
+                    android.widget.Toast.makeText(
+                        this@CollectionBooksActivity,
+                        "All books are already in this collection",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    return@withContext
+                }
+                
+                val bookTitles = availableBooks.map { "${it.title} by ${it.author}" }.toTypedArray()
+                val checkedItems = BooleanArray(availableBooks.size) { false }
+                
+                AlertDialog.Builder(this@CollectionBooksActivity)
+                    .setTitle(R.string.select_books_to_add)
+                    .setMultiChoiceItems(bookTitles, checkedItems) { _, which, isChecked ->
+                        checkedItems[which] = isChecked
+                    }
+                    .setPositiveButton(android.R.string.ok) { _, _ ->
+                        // Add selected books to collection
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            availableBooks.forEachIndexed { index, book ->
+                                if (checkedItems[index]) {
+                                    collectionViewModel.addBookToCollection(book.id, collectionId)
+                                }
+                            }
+                            
+                            withContext(Dispatchers.Main) {
+                                android.widget.Toast.makeText(
+                                    this@CollectionBooksActivity,
+                                    "Books added to collection",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                                loadCollectionBooks()
+                            }
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .show()
+            }
+        }
     }
     
     private fun loadCollectionBooks() {

@@ -426,6 +426,151 @@ class EpubParser(private val epubFile: File) {
         }
     }
     
+    /**
+     * Extract cover image from EPUB file
+     * Returns the path to the cover image within the ZIP file, or null if not found
+     */
+    fun extractCoverImagePath(): String? {
+        try {
+            zipFile = ZipFile(epubFile)
+            
+            // Step 1: Find the OPF file location
+            val opfPath = findOpfPath() ?: return null
+            val opfBasePath = if (opfPath.contains("/")) {
+                opfPath.substring(0, opfPath.lastIndexOf("/") + 1)
+            } else {
+                ""
+            }
+            
+            // Step 2: Parse the OPF file to get manifest
+            val opfContent = readFileFromZip(opfPath) ?: return null
+            val (_, _, manifest, _) = parseOpf(opfContent)
+            
+            // Step 3: Look for cover in multiple ways
+            
+            // Method 1: Look for metadata cover reference
+            val coverId = extractCoverIdFromOpf(opfContent)
+            if (coverId != null) {
+                val coverItem = manifest[coverId]
+                if (coverItem != null && coverItem.mediaType.startsWith("image/")) {
+                    return opfBasePath + coverItem.href
+                }
+            }
+            
+            // Method 2: Look for items with "cover" in the ID or href
+            val coverItem = manifest.values.find { item ->
+                item.mediaType.startsWith("image/") && 
+                (item.id.contains("cover", ignoreCase = true) || 
+                 item.href.contains("cover", ignoreCase = true))
+            }
+            if (coverItem != null) {
+                return opfBasePath + coverItem.href
+            }
+            
+            // Method 3: Look for first image in the manifest (fallback)
+            val firstImage = manifest.values.find { item ->
+                item.mediaType.startsWith("image/") &&
+                (item.href.endsWith(".jpg", ignoreCase = true) ||
+                 item.href.endsWith(".jpeg", ignoreCase = true) ||
+                 item.href.endsWith(".png", ignoreCase = true))
+            }
+            if (firstImage != null) {
+                return opfBasePath + firstImage.href
+            }
+            
+            return null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error extracting cover image path", e)
+            return null
+        } finally {
+            zipFile?.close()
+        }
+    }
+    
+    /**
+     * Extract cover ID from OPF metadata
+     */
+    private fun extractCoverIdFromOpf(opfContent: String): String? {
+        try {
+            val factory = XmlPullParserFactory.newInstance()
+            val parser = factory.newPullParser()
+            parser.setInput(StringReader(opfContent))
+            
+            var eventType = parser.eventType
+            var inMetadata = false
+            
+            while (eventType != XmlPullParser.END_DOCUMENT) {
+                when (eventType) {
+                    XmlPullParser.START_TAG -> {
+                        when (parser.name) {
+                            "metadata" -> inMetadata = true
+                            "meta" -> {
+                                if (inMetadata) {
+                                    val name = parser.getAttributeValue(null, "name")
+                                    val content = parser.getAttributeValue(null, "content")
+                                    if (name == "cover" && content != null) {
+                                        return content
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    XmlPullParser.END_TAG -> {
+                        if (parser.name == "metadata") {
+                            inMetadata = false
+                        }
+                    }
+                }
+                eventType = parser.next()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error extracting cover ID from OPF", e)
+        }
+        return null
+    }
+    
+    /**
+     * Extract cover image data from EPUB and save to file
+     */
+    fun extractCoverImage(outputFile: File): Boolean {
+        try {
+            zipFile = ZipFile(epubFile)
+            
+            val coverPath = extractCoverImagePath()
+            if (coverPath == null) {
+                Log.w(TAG, "No cover image found in EPUB")
+                return false
+            }
+            
+            // Read cover image bytes
+            val entry = zipFile?.getEntry(coverPath)
+            if (entry == null) {
+                Log.w(TAG, "Cover image entry not found: $coverPath")
+                return false
+            }
+            
+            val inputStream = zipFile?.getInputStream(entry)
+            if (inputStream == null) {
+                Log.w(TAG, "Could not open cover image stream")
+                return false
+            }
+            
+            // Save to output file
+            outputFile.outputStream().use { output ->
+                inputStream.copyTo(output)
+            }
+            inputStream.close()
+            
+            Log.d(TAG, "Cover image extracted successfully to: ${outputFile.absolutePath}")
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error extracting cover image", e)
+            return false
+        } finally {
+            zipFile?.close()
+        }
+    }
+    
     private data class OpfData(
         val title: String,
         val author: String,

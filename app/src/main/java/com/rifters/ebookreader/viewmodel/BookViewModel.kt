@@ -133,4 +133,8 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun getBookByPath(filePath: String): Book? {
         return bookDao.getBookByPath(filePath)
     }
+    
+    suspend fun getAllBooksSync(): List<Book> {
+        return bookDao.getAllBooksSync()
+    }
 }

@@ -151,11 +151,31 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                                         }
                                     }, 300) // 300ms pause between chunks for natural reading
                                 } else {
-                                    // Finished all chunks
-                                    isTtsPlaying = false
-                                    updateTtsButtons()
-                                    hideTtsProgress()
-                                    Toast.makeText(this@ViewerActivity, "Finished reading", Toast.LENGTH_SHORT).show()
+                                    // Finished all chunks in current chapter/content
+                                    android.util.Log.d("ViewerActivity", "Finished all chunks, checking for next chapter")
+                                    
+                                    // For EPUB, try to continue to next chapter automatically
+                                    if (epubContent != null && currentEpubChapter < epubContent!!.spine.size - 1) {
+                                        android.util.Log.d("ViewerActivity", "Auto-continuing to next chapter: ${currentEpubChapter + 1}")
+                                        Toast.makeText(this@ViewerActivity, "Continuing to next chapter...", Toast.LENGTH_SHORT).show()
+                                        
+                                        // Load next chapter and continue TTS
+                                        renderEpubChapter(currentEpubChapter + 1)
+                                        
+                                        // Wait for chapter to load, then resume TTS
+                                        binding.root.postDelayed({
+                                            if (isTtsPlaying) {
+                                                playTTS()
+                                            }
+                                        }, 500) // Give chapter time to load
+                                    } else {
+                                        // No more chapters or not an EPUB
+                                        isTtsPlaying = false
+                                        updateTtsButtons()
+                                        hideTtsProgress()
+                                        removeTextHighlights()
+                                        Toast.makeText(this@ViewerActivity, "Finished reading", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             } else {
                                 updateTtsButtons()
@@ -229,27 +249,120 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
     
     private fun highlightSpokenText(start: Int, end: Int) {
-        // For WebView content (EPUB), inject JavaScript to highlight the text
-        if (binding.webView.visibility == View.VISIBLE) {
-            binding.webView.evaluateJavascript(
-                """
-                (function() {
-                    // Remove previous highlights
-                    var oldHighlight = document.getElementById('tts-highlight');
-                    if (oldHighlight) {
-                        oldHighlight.remove();
-                    }
-                    
-                    // This is a simplified implementation
-                    // A full implementation would require tracking text positions
-                    // and selecting the appropriate text range
-                })();
-                """.trimIndent(),
-                null
-            )
+        // This is called by onRangeStart for fine-grained word-level highlighting
+        // Currently not used as we're doing paragraph-level highlighting instead
+        // Could be enhanced for word-by-word highlighting in the future
+    }
+    
+    /**
+     * Highlight the current TTS chunk being read in the WebView
+     */
+    private fun highlightCurrentChunk() {
+        if (binding.webView.visibility != View.VISIBLE || ttsTextChunks.isEmpty()) {
+            return
         }
-        // For TextView content (TXT), we can use SpannableString to highlight
-        // This would require more complex implementation
+        
+        if (currentTtsChunkIndex >= ttsTextChunks.size) {
+            return
+        }
+        
+        val chunk = ttsTextChunks[currentTtsChunkIndex]
+        val textToHighlight = chunk.text.trim()
+        
+        // Escape special characters for JavaScript string
+        val escapedText = textToHighlight
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("'", "\\'")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+        
+        // Get highlight color from preferences or use default
+        val highlightColor = "#FFD54F" // Material Yellow 300
+        
+        binding.webView.evaluateJavascript(
+            """
+            (function() {
+                // Remove previous highlights
+                var oldHighlights = document.querySelectorAll('.tts-highlight');
+                oldHighlights.forEach(function(el) {
+                    var parent = el.parentNode;
+                    parent.replaceChild(document.createTextNode(el.textContent), el);
+                    parent.normalize();
+                });
+                
+                // Function to highlight text in a node
+                function highlightTextInNode(node, searchText) {
+                    if (node.nodeType === 3) { // Text node
+                        var text = node.textContent;
+                        var index = text.indexOf(searchText);
+                        
+                        if (index >= 0) {
+                            var span = document.createElement('span');
+                            span.className = 'tts-highlight';
+                            span.style.backgroundColor = '$highlightColor';
+                            span.style.transition = 'background-color 0.3s';
+                            
+                            var before = document.createTextNode(text.substring(0, index));
+                            var highlighted = document.createTextNode(searchText);
+                            var after = document.createTextNode(text.substring(index + searchText.length));
+                            
+                            span.appendChild(highlighted);
+                            
+                            var parent = node.parentNode;
+                            parent.insertBefore(before, node);
+                            parent.insertBefore(span, node);
+                            parent.insertBefore(after, node);
+                            parent.removeChild(node);
+                            
+                            // Scroll to highlighted element
+                            span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            return true;
+                        }
+                    } else if (node.nodeType === 1 && node.childNodes && !/(script|style)/i.test(node.tagName)) {
+                        for (var i = 0; i < node.childNodes.length; i++) {
+                            if (highlightTextInNode(node.childNodes[i], searchText)) {
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                }
+                
+                // Try to highlight the text
+                var searchText = "$escapedText";
+                // Limit search text for better matching (first 100 chars)
+                if (searchText.length > 100) {
+                    searchText = searchText.substring(0, 100);
+                }
+                highlightTextInNode(document.body, searchText);
+            })();
+            """.trimIndent(),
+            null
+        )
+    }
+    
+    /**
+     * Remove all TTS text highlights from the WebView
+     */
+    private fun removeTextHighlights() {
+        if (binding.webView.visibility != View.VISIBLE) {
+            return
+        }
+        
+        binding.webView.evaluateJavascript(
+            """
+            (function() {
+                var highlights = document.querySelectorAll('.tts-highlight');
+                highlights.forEach(function(el) {
+                    var parent = el.parentNode;
+                    parent.replaceChild(document.createTextNode(el.textContent), el);
+                    parent.normalize();
+                });
+            })();
+            """.trimIndent(),
+            null
+        )
     }
     
     private fun setupToolbar() {
@@ -460,6 +573,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 saveTtsPosition(chunk.startPosition)
                 updateTtsButtons()
                 updateTtsProgress()
+                // Highlight the text being read
+                highlightCurrentChunk()
             }
             TextToSpeech.ERROR -> {
                 android.util.Log.e("ViewerActivity", "TTS speak returned ERROR")
@@ -494,7 +609,30 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         currentTtsChunkIndex = 0
         updateTtsButtons()
         hideTtsProgress()
+        removeTextHighlights()
         Toast.makeText(this, "TTS stopped", Toast.LENGTH_SHORT).show()
+    }
+    
+    /**
+     * Reset TTS state when content changes (e.g., chapter navigation)
+     * This ensures TTS doesn't get stuck on old content
+     */
+    private fun resetTtsStateForNewContent() {
+        // Stop any ongoing TTS playback
+        if (isTtsPlaying) {
+            textToSpeech?.stop()
+            isTtsPlaying = false
+        }
+        
+        // Clear TTS chunks and reset position
+        ttsTextChunks = emptyList()
+        currentTtsChunkIndex = 0
+        ttsSavedPosition = 0 // Reset saved position for new content
+        
+        // Remove any existing highlights
+        removeTextHighlights()
+        
+        android.util.Log.d("ViewerActivity", "TTS state reset for new content")
     }
     
     private fun updateTtsProgress() {
@@ -976,6 +1114,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         currentEpubChapter = chapterIndex
                         currentPage = chapterIndex
                         currentTextContent = chapterHtml // Store for TTS
+                        
+                        // Reset TTS state when chapter changes
+                        resetTtsStateForNewContent()
                         
                         // Update TTS button state now that content is loaded
                         updateTtsButtons()

@@ -1,5 +1,6 @@
 package com.rifters.ebookreader.util
 
+import android.util.Base64
 import android.util.Log
 import com.rifters.ebookreader.model.TableOfContentsItem
 import org.xmlpull.v1.XmlPullParser
@@ -389,13 +390,107 @@ class EpubParser(private val epubFile: File) {
         // Reopen the ZIP file to read the chapter content
         return try {
             val zip = ZipFile(epubFile)
-            val content = readFileFromZip(zip, href)
+            var content = readFileFromZip(zip, href)
+            
+            // Embed images as base64 data URLs for proper rendering
+            if (content != null) {
+                content = embedImagesAsBase64(content, epubContent.opfBasePath, zip, epubContent.manifest)
+            }
+            
             zip.close()
             content
         } catch (e: Exception) {
             Log.e(TAG, "Error reading chapter content", e)
             null
         }
+    }
+    
+    /**
+     * Convert image src attributes to base64 data URLs for WebView rendering
+     */
+    private fun embedImagesAsBase64(
+        html: String, 
+        basePath: String, 
+        zip: ZipFile,
+        manifest: Map<String, ManifestItem>
+    ): String {
+        var result = html
+        
+        try {
+            // Find all img tags with src attribute
+            val imgPattern = Regex("""<img[^>]*\ssrc\s*=\s*["']([^"']+)["'][^>]*>""", RegexOption.IGNORE_CASE)
+            val matches = imgPattern.findAll(html)
+            
+            for (match in matches) {
+                val fullTag = match.value
+                val imagePath = match.groupValues[1]
+                
+                // Skip if already a data URL
+                if (imagePath.startsWith("data:")) {
+                    continue
+                }
+                
+                // Try to find the image in the EPUB
+                val imageData = getImageAsBase64(imagePath, basePath, zip)
+                if (imageData != null) {
+                    // Replace the src with base64 data URL
+                    val newTag = fullTag.replace(
+                        """src\s*=\s*["']$imagePath["']""".toRegex(RegexOption.IGNORE_CASE),
+                        """src="$imageData""""
+                    )
+                    result = result.replace(fullTag, newTag)
+                    Log.d(TAG, "Embedded image: $imagePath")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error embedding images", e)
+        }
+        
+        return result
+    }
+    
+    /**
+     * Get image file from EPUB as base64 data URL
+     */
+    private fun getImageAsBase64(imagePath: String, basePath: String, zip: ZipFile): String? {
+        try {
+            // Try multiple path variations
+            val pathsToTry = listOf(
+                imagePath,
+                basePath + imagePath,
+                imagePath.replaceFirst("../", ""),
+                basePath + imagePath.replaceFirst("../", "")
+            )
+            
+            for (path in pathsToTry) {
+                val entry = zip.getEntry(path)
+                if (entry != null && !entry.isDirectory) {
+                    val inputStream = zip.getInputStream(entry)
+                    val bytes = inputStream.readBytes()
+                    inputStream.close()
+                    
+                    // Determine MIME type from extension
+                    val mimeType = when {
+                        path.endsWith(".jpg", ignoreCase = true) || 
+                        path.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
+                        path.endsWith(".png", ignoreCase = true) -> "image/png"
+                        path.endsWith(".gif", ignoreCase = true) -> "image/gif"
+                        path.endsWith(".svg", ignoreCase = true) -> "image/svg+xml"
+                        path.endsWith(".webp", ignoreCase = true) -> "image/webp"
+                        else -> "image/jpeg" // default
+                    }
+                    
+                    val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                    return "data:$mimeType;base64,$base64"
+                }
+            }
+            
+            Log.w(TAG, "Image not found in EPUB: $imagePath (tried ${pathsToTry.size} variations)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error loading image: $imagePath", e)
+        }
+        
+        return null
     }
     
     /**

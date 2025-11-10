@@ -290,15 +290,21 @@ class MainActivity : AppCompatActivity() {
                 var coverImagePath: String? = null
                 if (fileExtension == "epub") {
                     try {
+                        android.util.Log.d("MainActivity", "Attempting to extract EPUB cover for: $fileName")
                         val epubParser = com.rifters.ebookreader.util.EpubParser(file)
                         val coverFile = File(storageDir, "cover_${System.currentTimeMillis()}.jpg")
                         if (epubParser.extractCoverImage(coverFile)) {
                             coverImagePath = coverFile.absolutePath
+                            android.util.Log.d("MainActivity", "Successfully extracted cover to: $coverImagePath")
+                        } else {
+                            android.util.Log.w("MainActivity", "Cover extraction returned false for: $fileName")
                         }
                     } catch (e: Exception) {
-                        android.util.Log.e("MainActivity", "Failed to extract EPUB cover", e)
+                        android.util.Log.e("MainActivity", "Failed to extract EPUB cover for: $fileName", e)
                         // Continue without cover - not critical
                     }
+                } else {
+                    android.util.Log.d("MainActivity", "Skipping cover extraction for non-EPUB: $fileName")
                 }
                 
                 // Create book entry

@@ -70,8 +70,34 @@ class BookAdapter(
                 if (!book.coverImagePath.isNullOrEmpty()) {
                     val coverFile = java.io.File(book.coverImagePath)
                     if (coverFile.exists()) {
-                        bookCoverImageView.setImageURI(android.net.Uri.fromFile(coverFile))
+                        try {
+                            // Use BitmapFactory for better reliability than setImageURI
+                            val bitmap = android.graphics.BitmapFactory.decodeFile(coverFile.absolutePath)
+                            if (bitmap != null) {
+                                bookCoverImageView.setImageBitmap(bitmap)
+                                android.util.Log.d("BookAdapter", "Loaded cover: ${coverFile.name}")
+                            } else {
+                                // Bitmap decode failed, use default
+                                android.util.Log.w("BookAdapter", "Failed to decode cover bitmap: ${coverFile.absolutePath}")
+                                val defaultCover = BookCoverGenerator.generateDefaultCover(
+                                    root.context,
+                                    book.title,
+                                    book.author
+                                )
+                                bookCoverImageView.setImageBitmap(defaultCover)
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("BookAdapter", "Error loading cover", e)
+                            // Generate default cover on error
+                            val defaultCover = BookCoverGenerator.generateDefaultCover(
+                                root.context,
+                                book.title,
+                                book.author
+                            )
+                            bookCoverImageView.setImageBitmap(defaultCover)
+                        }
                     } else {
+                        android.util.Log.w("BookAdapter", "Cover file doesn't exist: ${book.coverImagePath}")
                         // Generate default cover with title and author
                         val defaultCover = BookCoverGenerator.generateDefaultCover(
                             root.context,
@@ -81,6 +107,7 @@ class BookAdapter(
                         bookCoverImageView.setImageBitmap(defaultCover)
                     }
                 } else {
+                    android.util.Log.d("BookAdapter", "No cover path for book: ${book.title}")
                     // Generate default cover with title and author
                     val defaultCover = BookCoverGenerator.generateDefaultCover(
                         root.context,

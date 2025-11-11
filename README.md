@@ -61,14 +61,16 @@ A modern Android e-book reader application built with Kotlin, supporting multipl
 - ✅ **Conflict Resolution** - Last-write-wins strategy based on timestamps
 - ✅ **Manual Sync** - On-demand sync trigger from menu or settings
 
-### 🌐 Cloud Storage Integration (Implemented, Needs Authentication Setup)
-- ⚠️ **WebDAV** - Generic WebDAV protocol (works with Nextcloud, ownCloud)
-- ⚠️ **Google Drive** - Google Drive API v3 integration (requires OAuth setup)
-- ⚠️ **Dropbox** - Dropbox Core SDK integration (requires API token)
-- ⚠️ **OneDrive** - Microsoft Graph API (requires OAuth setup)
-- ⚠️ **FTP/SFTP** - File transfer protocols (basic implementation)
+### 🌐 Cloud Storage Integration (OAuth-ready; configure provider credentials)
+- ✅ **Multi-Account Support** - Switch between multiple accounts per provider with encrypted token storage
+- ✅ **Google Drive** - OAuth 2.0 sign-in with Drive scope (configure credentials; see CLOUD_SETUP_GUIDE.md)
+- ✅ **Dropbox** - Native OAuth flow via Dropbox SDK (requires app key setup)
+- ✅ **OneDrive** - Microsoft identity (MSAL) authentication with Graph API access
+- ✅ **WebDAV** - Generic WebDAV protocol (Nextcloud, ownCloud, Box.com)
+- ✅ **FTP/SFTP** - Direct server access for personal storage
+- 🧪 **MEGA / pCloud / Yandex Disk / Box** - Provider stubs ready for API keys and REST integration
 
-*Note: Cloud storage providers are implemented but require user authentication configuration*
+*Note: OAuth flows are implemented; add your provider credentials following [CLOUD_SETUP_GUIDE.md](CLOUD_SETUP_GUIDE.md) to enable each service.*
 
 ### 🛠️ Technical Features (Fully Working)
 - ✅ **Room Database** - Efficient local storage with migrations
@@ -79,18 +81,23 @@ A modern Android e-book reader application built with Kotlin, supporting multipl
 - ✅ **Performance Optimized** - Lazy loading, bitmap caching, memory management
 - ✅ **Large File Support** - Handle 50MB+ books with chunked reading
 - ✅ **Network Downloads** - Download books directly from URLs
+- ✅ **Background Download Queue** - WorkManager-powered queue with progress notifications, pause/cancel, and automatic library import
+- ✅ **Secure Token Storage** - Android KeyStore encryption for OAuth tokens and cloud credentials
 - ✅ **File Validation** - Format verification and integrity checks
 
 ## 🚧 Known Limitations & Work Needed
 
-### Cloud Storage Authentication
-The cloud storage providers are implemented but require authentication setup:
-- **Google Drive**: Needs OAuth 2.0 flow implementation and API credentials
-- **Dropbox**: Requires access token from Dropbox app console
-- **OneDrive**: Needs Microsoft Graph OAuth flow implementation
-- **FTP/SFTP**: Basic implementation, may need enhanced error handling
+### Cloud Storage Integration
+Production OAuth flows now ship for the primary providers, but you must supply credentials and there is follow-up work planned:
+- **Google Drive**: Google Sign-In + Drive scope is implemented; configure your OAuth client in `CLOUD_SETUP_GUIDE.md`
+- **Dropbox**: Dropbox Auth SDK handles OAuth; add your app key/secret and redirect URI
+- **OneDrive**: MSAL + Microsoft Graph login is live; register an Azure AD app and update `msal_config.json`
+- **FTP/SFTP**: Works for basic operations, but could use stronger retry/error handling
 
-**Workaround**: WebDAV works with username/password authentication
+**Upcoming Enhancements**
+- Finalize REST integrations for MEGA, pCloud, Box, and Yandex Disk once API credentials are provisioned
+- Expand conflict resolution UI for concurrent cloud edits
+- Extend download queue to support background uploads as well
 
 ### System Dark Mode
 - App uses Material3 DayNight theme base but no explicit values-night resources
@@ -193,14 +200,18 @@ Most optimizations are complete, but future improvements could include:
 - **SmartCollections.kt** - Auto-organize books into smart collections
 - **DuplicateDetector.kt** - Similarity algorithms for duplicate detection
 
-#### Cloud Storage (7 files)
+#### Cloud Storage (11 files)
 - **CloudStorageProvider.kt** - Interface for cloud providers
 - **CloudStorageManager.kt** - Manage multiple cloud providers
 - **WebDavProvider.kt** - WebDAV protocol implementation (✅ Working)
-- **GoogleDriveProvider.kt** - Google Drive API v3 (⚠️ Needs OAuth)
-- **DropboxProvider.kt** - Dropbox Core SDK (⚠️ Needs token)
-- **OneDriveProvider.kt** - Microsoft Graph API (⚠️ Needs OAuth)
+- **GoogleDriveProvider.kt** - Google Drive API v3 (✅ OAuth-ready; add credentials)
+- **DropboxProvider.kt** - Dropbox Core SDK (✅ OAuth-ready; add app key/secret)
+- **OneDriveProvider.kt** - Microsoft Graph API (✅ OAuth-ready; configure MSAL)
 - **FtpProvider.kt** - FTP/SFTP support (⚠️ Basic implementation)
+- **MegaProvider.kt** - MEGA REST integration scaffold (🚧 Awaiting API wiring)
+- **PCloudProvider.kt** - pCloud REST integration scaffold (🚧 Awaiting API wiring)
+- **YandexDiskProvider.kt** - Yandex Disk REST integration scaffold (🚧 Awaiting credentials)
+- **BoxProvider.kt** - Box Content API integration scaffold (🚧 Awaiting OAuth setup)
 
 #### Sync Services (in sync/ directory)
 - **FirebaseSyncService.kt** - Firebase Firestore sync operations
@@ -307,6 +318,21 @@ com.google.http-client:google-http-client-gson:1.42.3
 
 // Dropbox
 com.dropbox.core:dropbox-core-sdk:5.4.5
+
+// OneDrive / Microsoft Graph
+com.microsoft.identity.client:msal:4.9.0
+com.microsoft.graph:microsoft-graph:5.77.0
+
+// Box
+com.box:box-android-sdk:5.6.0
+
+// REST clients (MEGA, pCloud, etc.)
+com.squareup.okhttp3:okhttp:4.12.0
+com.squareup.retrofit2:retrofit:2.9.0
+com.squareup.retrofit2:converter-gson:2.9.0
+
+// Yandex Disk
+com.yandex.android:disk-restapi-sdk:1.03
 
 // FTP/SFTP
 commons-net:commons-net:3.10.0    // FTP
@@ -1012,146 +1038,84 @@ Available in **Settings → Cloud Sync**:
 
 ## 🌐 Cloud Storage Integration
 
-The app includes a cloud storage framework for importing books from various cloud providers and personal storage solutions.
+The app includes a robust cloud storage framework for importing and managing books from personal or commercial providers. OAuth flows, token management, and background downloads are now production-ready.
 
-### ✅ Fully Working
+### ✅ OAuth-Enabled Providers (configure credentials and you're good to go)
 
-- **WebDAV Provider**
-  - Generic WebDAV protocol (RFC 4918)
-  - Works with Nextcloud, ownCloud, Box.com
-  - Username/password authentication
-  - Browse folders and files
-  - Download books directly to library
-  - Upload books to cloud (backup)
-  - Implemented in `WebDavProvider.kt`
+- **Google Drive** – OAuth 2.0 sign-in via Google Play Services with Drive scopes. Supports browsing, search, upload, and download. Configure credentials as described in [CLOUD_SETUP_GUIDE.md](CLOUD_SETUP_GUIDE.md).
+- **Dropbox** – Native Dropbox OAuth flow with account metadata retrieval. Browse, upload, and download once an app key is configured.
+- **OneDrive** – Microsoft identity (MSAL) authentication with Microsoft Graph file APIs. Supports personal and organizational accounts.
+- **WebDAV** – Username/password access for Nextcloud, ownCloud, Box.com, and other WebDAV-compatible services.
+- **FTP/SFTP** – Direct server access (including FTPS/SFTP) for self-hosted libraries.
 
-### ⚠️ Implemented but Needs Authentication Setup
+### 🧪 Emerging Providers (alpha)
 
-The following providers are fully implemented but require OAuth configuration to work:
+- **MEGA** – REST-client scaffolding ready; supply session handling and API keys to enable.
+- **pCloud** – OAuth and REST wiring prepared for integration.
+- **Yandex Disk** – SDK-backed implementation with token-based auth.
+- **Box** – Box Android SDK wired in; uncomment credential wiring to enable full flow.
 
-- **Google Drive**
-  - Google Drive API v3 integration
-  - Needs: OAuth 2.0 consent screen and credentials
-  - Features: Browse, download, upload, search
-  - Implemented in `GoogleDriveProvider.kt`
-  
-- **Dropbox**
-  - Dropbox Core SDK v2
-  - Needs: App registration and access token
-  - Features: Browse, download, upload
-  - Implemented in `DropboxProvider.kt`
-  
-- **OneDrive**
-  - Microsoft Graph API
-  - Needs: Microsoft App registration and OAuth
-  - Features: Browse, download, upload
-  - Implemented in `OneDriveProvider.kt`
-  
-- **FTP/SFTP**
-  - File Transfer Protocol support
-  - Needs: Server credentials
-  - Features: Browse, download, upload
-  - Basic implementation in `FtpProvider.kt`
+### ✨ Supporting Features
+
+- **Multi-Account Manager** – Switch between multiple accounts per provider via the new account picker in `CloudBrowserActivity`.
+- **Secure Token Storage** – OAuth tokens encrypted with Android KeyStore (`TokenEncryption`).
+- **Offline Listing Cache** – File listings cached to disk (`FileListingCache`) for instant reloads when offline.
+- **Background Download Queue** – WorkManager-powered queue with rich notifications, pause/cancel, and automatic library import (`DownloadWorker`).
+- **Conflict Resolver** – Automatic rename/overwrite/skip strategies to avoid clobbering local files.
+- **Auto-Import** – Downloaded books are inserted into the Room library automatically (`AutoImportService`).
 
 ### 📁 Supported Operations
 
-All providers support these operations (once authenticated):
+All enabled providers support:
 
-- **Browse**: List files and folders
-- **Navigate**: Enter folders, go back
-- **Download**: Download books to local library
-- **Upload**: Backup books to cloud storage
-- **Search**: Find files by name (provider-dependent)
-- **Filter**: Show only supported book formats
+- **Browse & Navigate** – Folder traversal with cached listings.
+- **Download with Progress** – Foreground notifications and background queueing for large files.
+- **Upload** – Backup books to your provider (where supported).
+- **Search & Filter** – Provider-specific search plus local filtering by supported formats.
+- **Offline Access** – Cached directory results when connectivity drops.
 
 ### 🎯 Usage Flow
 
-1. Go to **Settings** → **Cloud Storage**
-2. Select a provider (WebDAV, Google Drive, etc.)
-3. Enter credentials or complete OAuth flow
-4. Browse your cloud storage
-5. Tap a book file to download to library
-6. Book automatically added to library
+1. Open **Settings → Cloud Storage**.
+2. Tap **Manage** to add or remove provider accounts.
+3. Complete the OAuth flow (Google, Dropbox, OneDrive) or enter credentials (WebDAV/FTP/SFTP).
+4. Choose an account from the spinner in `CloudBrowserActivity`.
+5. Browse, download, and upload books seamlessly. Downloaded titles import automatically into the library.
 
 ### 🔧 Implementation Details
 
-**Architecture:**
-- `CloudStorageProvider` interface defines common operations
-- Each provider implements the interface
-- `CloudStorageManager` coordinates multiple providers
-- `CloudBrowserActivity` provides UI for browsing
-- `CloudStorageViewModel` manages state and operations
-
-**File Format Detection:**
-- Filters files by extension
-- Supported: pdf, epub, mobi, txt, cbz, cbr, cb7, cbt, fb2, md, html, azw, docx
-- Ignores other file types in cloud browser
-
-**Error Handling:**
-- Network errors: Retry with exponential backoff
-- Authentication errors: Prompt to re-authenticate
-- File not found: Show user-friendly message
-- Timeout: Configurable timeout (30s default)
-
-### 🚧 Work Needed for Full Cloud Storage
-
-To make cloud storage providers fully operational:
-
-1. **Google Drive OAuth** (Priority: High)
-   - Set up OAuth 2.0 consent screen in Google Cloud Console
-   - Add OAuth credentials
-   - Implement sign-in flow in app
-   - Handle token refresh
-   - Estimated: 2-3 days
-
-2. **Dropbox App Registration** (Priority: Medium)
-   - Register app in Dropbox App Console
-   - Get API app key and secret
-   - Implement OAuth flow
-   - Estimated: 1-2 days
-
-3. **OneDrive OAuth** (Priority: Medium)
-   - Register app in Microsoft Azure Portal
-   - Configure redirect URIs
-   - Implement MSAL authentication
-   - Estimated: 2-3 days
-
-4. **Enhanced FTP/SFTP** (Priority: Low)
-   - Add connection pooling
-   - Better error handling
-   - Support for keys (not just passwords)
-   - Estimated: 2-3 days
-
-5. **Multi-Account Support** (Priority: Low)
-   - Support multiple accounts per provider
-   - Account picker UI
-   - Persist credentials securely
-   - Estimated: 3-4 days
+- `CloudStorageProvider` – Defines the common contract across providers.
+- `CloudStorageManager` – Registers providers and tracks the active account.
+- `CloudAccountManager` – Persists encrypted account metadata and tokens.
+- `CloudBrowserActivity` – UI with account picker, Manage dialog, and provider routing.
+- `CloudStorageViewModel` – Handles authentication, caching, and progress updates.
+- `FileListingCache` – JSON disk cache for listings (stale-first, then refresh).
+- `DownloadWorker` & `DownloadQueueManager` – Background downloads with notifications.
 
 ### 🔒 Security Considerations
 
-- **Credentials**: Stored in EncryptedSharedPreferences
-- **Tokens**: OAuth tokens stored securely
-- **HTTPS**: All cloud operations over HTTPS
-- **Scopes**: Request minimal permissions
-- **No Logging**: Credentials never logged
-- **Token Refresh**: Automatic OAuth token refresh
+- **Token Encryption** – All tokens stored via Android KeyStore-backed AES-GCM.
+- **Scoped Permissions** – Providers request minimal scopes (read/write as needed).
+- **Credential Hygiene** – No logging of secrets; tokens refreshed via provider SDKs.
+- **Networking** – All traffic over HTTPS/TLS; `okhttp` configured with sane defaults.
+
+### 🚧 Ongoing Cloud Work
+
+- Finalize MEGA/pCloud REST integrations (session auth, pagination, upload support).
+- Enhance FTP/SFTP with key-based auth, pooling, and resume support.
+- Add background upload queue parity with downloads.
+- Provide conflict resolution UI surfaces (rename vs overwrite).
+- Expand integration tests covering multi-account switching and offline cache fallbacks.
 
 ### 🔮 Planned Cloud Storage Features
 
-Future enhancements for cloud storage:
-
 - [ ] S3-compatible storage (MinIO, Wasabi, AWS S3)
 - [ ] SMB/CIFS network shares
-- [ ] MEGA cloud storage
-- [ ] pCloud integration
-- [ ] Yandex Disk support
-- [ ] Automatic book discovery (scan cloud folders)
-- [ ] Two-way sync (upload new books automatically)
-- [ ] Conflict resolution for file changes
-- [ ] Bandwidth throttling
-- [ ] Resume interrupted downloads
-- [ ] Background upload/download with notifications
+- [ ] Automatic book discovery and folder watching
+- [ ] Two-way sync (auto-upload new local books)
+- [ ] Advanced conflict resolution UI with diff previews
+- [ ] Bandwidth throttling and scheduling
+- [ ] Resume interrupted uploads/downloads across reboots
 
 ## 📚 Supported File Formats
 

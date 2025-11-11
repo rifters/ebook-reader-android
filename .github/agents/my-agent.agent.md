@@ -1,12 +1,12 @@
----
+
 # Fill in the fields below to create a basic custom agent for your repository.
 # The Copilot CLI can be used for local testing: https://gh.io/customagents/cli
 # To make this agent available, merge this file into the default repository branch.
 # For format details, see: https://gh.io/customagents/config
 
 name:LibreraReader
+
 description:agent that checks the public repo Rifters/LibreraReader for referencing a proper working ebook reader and tries to use its knowledge from LibreraReader in mimicing its patterns and use of features and implements to improve and make my project up to thats standard eventually surpassing it.
----
 
 # My Agent
 

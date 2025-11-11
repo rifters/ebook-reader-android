@@ -12,6 +12,7 @@ import java.io.File
 class CloudStorageViewModel(application: Application) : AndroidViewModel(application) {
     
     private val cloudManager = CloudStorageManager.getInstance(application)
+    private val cache = FileListingCache(application)
     
     private val _files = MutableLiveData<CloudResult<List<CloudFile>>>()
     val files: LiveData<CloudResult<List<CloudFile>>> = _files
@@ -27,6 +28,31 @@ class CloudStorageViewModel(application: Application) : AndroidViewModel(applica
     
     private val _quota = MutableLiveData<CloudResult<StorageQuota>>()
     val quota: LiveData<CloudResult<StorageQuota>> = _quota
+    
+    private var currentAccount: CloudAccount? = null
+    
+    /**
+     * Switch to a different account
+     */
+    fun switchAccount(account: CloudAccount) {
+        currentAccount = account
+        // Update active provider based on account
+        val provider = when (account.provider) {
+            "GoogleDrive" -> GoogleDriveProvider(account.token)
+            "Dropbox" -> DropboxProvider(account.token)
+            "OneDrive" -> OneDriveProvider(account.token)
+            "MEGA" -> MegaProvider(account.token)
+            "pCloud" -> PCloudProvider(account.token)
+            "YandexDisk" -> YandexDiskProvider(account.token)
+            "Box" -> BoxProvider(account.token)
+            else -> null
+        }
+        
+        if (provider != null) {
+            cloudManager.registerProvider(provider)
+            cloudManager.setActiveProvider(provider.providerName)
+        }
+    }
     
     /**
      * Get the cloud storage manager
@@ -67,7 +93,19 @@ class CloudStorageViewModel(application: Application) : AndroidViewModel(applica
         _files.value = CloudResult.Loading
         viewModelScope.launch {
             try {
+                // Try to load from cache first
+                val providerName = provider.providerName
+                val cached = cache.loadListing(providerName, path)
+                if (cached.isNotEmpty()) {
+                    _files.value = CloudResult.Success(cached)
+                }
+                
+                // Then fetch fresh data
                 val fileList = provider.listFiles(path)
+                
+                // Save to cache
+                cache.saveListing(providerName, path, fileList)
+                
                 _files.value = CloudResult.Success(fileList)
             } catch (e: Exception) {
                 _files.value = CloudResult.Error("Failed to list files", e)

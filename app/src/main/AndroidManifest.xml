@@ -93,6 +93,22 @@
             android:exported="false"
             android:label="@string/edit_book" />
 
+        <!-- OAuth / Cloud integration activities -->
+        <activity
+            android:name=".cloud.GoogleSignInActivity"
+            android:exported="false"
+            android:label="@string/google_sign_in" />
+
+        <activity
+            android:name=".cloud.DropboxOAuthActivity"
+            android:exported="false"
+            android:label="@string/dropbox_sign_in" />
+
+        <activity
+            android:name=".cloud.OneDriveOAuthActivity"
+            android:exported="false"
+            android:label="@string/onedrive_sign_in" />
+
     </application>
 
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />

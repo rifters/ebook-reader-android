@@ -230,4 +230,9 @@
     <string name="no_replacements">No replacements configured</string>
     <string name="manage_replacements">Manage Replacements</string>
     <string name="replacement_examples">Examples:\nit\'s → it is\ncan\'t → cannot\n*[?!] → . (regex)</string>
+    
+    <!-- OAuth Activities -->
+    <string name="google_sign_in">Google Sign-In</string>
+    <string name="dropbox_sign_in">Dropbox Sign-In</string>
+    <string name="onedrive_sign_in">OneDrive Sign-In</string>
 </resources>

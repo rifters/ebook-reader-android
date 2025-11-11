@@ -103,6 +103,28 @@ dependencies {
     // Cloud Storage - Dropbox
     implementation("com.dropbox.core:dropbox-core-sdk:5.4.5")
     
+    // Cloud Storage - OneDrive (Microsoft Graph API)
+    implementation("com.microsoft.identity.client:msal:4.9.0")
+    implementation("com.microsoft.graph:microsoft-graph:5.77.0") {
+        exclude(group = "com.google.guava", module = "guava-jdk5")
+    }
+    
+    // Cloud Storage - Box
+    implementation("com.box:box-android-sdk:5.6.0")
+    
+    // Cloud Storage - MEGA
+    // Note: MEGA SDK requires native build setup. Using REST API approach instead.
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    
+    // Cloud Storage - pCloud
+    // pCloud SDK also available but we'll use REST API for simplicity
+    // (implementation code uses OkHttp + Retrofit)
+    
+    // Cloud Storage - Yandex Disk
+    implementation("com.yandex.android:disk-restapi-sdk:1.03")
+    
     // Cloud Storage - FTP/SFTP
     implementation("commons-net:commons-net:3.10.0") // For FTP
     implementation("com.jcraft:jsch:0.1.55") // For SFTP

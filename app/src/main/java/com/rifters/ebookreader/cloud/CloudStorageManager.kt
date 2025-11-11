@@ -49,6 +49,11 @@ class CloudStorageManager(private val context: Context) {
     fun getProvider(providerName: String): CloudStorageProvider? = providers[providerName]
     
     /**
+     * Get a specific provider by name (alternative method for compatibility)
+     */
+    fun getProviderByName(providerName: String): CloudStorageProvider? = providers[providerName]
+    
+    /**
      * Remove a provider
      */
     fun unregisterProvider(providerName: String) {
@@ -77,5 +82,7 @@ class CloudStorageManager(private val context: Context) {
                 instance
             }
         }
+        
+        fun get(context: Context): CloudStorageManager = getInstance(context)
     }
 }

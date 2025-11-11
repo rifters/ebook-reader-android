@@ -15,6 +15,33 @@
             android:layout_height="?attr/actionBarSize"
             android:background="?attr/colorPrimary"
             app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
+        
+        <!-- Account selector and management -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="8dp"
+            android:background="?attr/colorPrimary"
+            android:gravity="center_vertical">
+            
+            <androidx.appcompat.widget.AppCompatSpinner
+                android:id="@+id/accountSpinner"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@drawable/bg_card_outline"
+                android:padding="8dp" />
+            
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/manageAccountsButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="Manage"
+                style="@style/Widget.MaterialComponents.Button.TextButton" />
+                
+        </LinearLayout>
 
     </com.google.android.material.appbar.AppBarLayout>
 

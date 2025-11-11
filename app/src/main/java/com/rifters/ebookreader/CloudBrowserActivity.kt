@@ -1,38 +1,55 @@
 package com.rifters.ebookreader
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.rifters.ebookreader.cloud.CloudAccountManager
 import com.rifters.ebookreader.cloud.CloudFile
 import com.rifters.ebookreader.cloud.CloudResult
+import com.rifters.ebookreader.cloud.GoogleSignInActivity
+import com.rifters.ebookreader.cloud.DropboxOAuthActivity
+import com.rifters.ebookreader.cloud.OneDriveOAuthActivity
 import com.rifters.ebookreader.databinding.ActivityCloudBrowserBinding
 import com.rifters.ebookreader.viewmodel.CloudStorageViewModel
 import java.io.File
 
 /**
  * Activity for browsing cloud storage and importing books
+ * Now with multi-account support
  */
 class CloudBrowserActivity : AppCompatActivity() {
     
     private lateinit var binding: ActivityCloudBrowserBinding
     private lateinit var viewModel: CloudStorageViewModel
     private lateinit var adapter: CloudFileAdapter
+    private lateinit var accountManager: CloudAccountManager
     
     private var currentPath: String? = null
     private val pathHistory = mutableListOf<String?>()
+    
+    private val REQUEST_GOOGLE_SIGNIN = 1001
+    private val REQUEST_DROPBOX_AUTH = 1002
+    private val REQUEST_ONEDRIVE_AUTH = 1003
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityCloudBrowserBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
+        accountManager = CloudAccountManager.get(this)
+        
         setupToolbar()
         setupViewModel()
         setupRecyclerView()
         setupObservers()
+        setupAccountSelector()
         
         // Load initial directory
         loadCurrentDirectory()
@@ -123,6 +140,79 @@ class CloudBrowserActivity : AppCompatActivity() {
                         "Download failed: ${result.message}",
                         Toast.LENGTH_LONG
                     ).show()
+                }
+            }
+        }
+    }
+    
+    private fun setupAccountSelector() {
+        refreshAccountList()
+        
+        binding.accountSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val accounts = accountManager.listAccounts()
+                if (position < accounts.size) {
+                    val account = accounts[position]
+                    // Switch to this account
+                    viewModel.switchAccount(account)
+                    loadCurrentDirectory()
+                }
+            }
+            
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        
+        binding.manageAccountsButton.setOnClickListener {
+            showManageAccountsDialog()
+        }
+    }
+    
+    private fun refreshAccountList() {
+        val accounts = accountManager.listAccounts()
+        val displayNames = accounts.map { "${it.displayName} (${it.provider})" }
+        
+        val spinnerAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, displayNames)
+        spinnerAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.accountSpinner.adapter = spinnerAdapter
+    }
+    
+    private fun showManageAccountsDialog() {
+        val accounts = accountManager.listAccounts()
+        val options = mutableListOf<String>()
+        options.add("➕ Add Google Drive")
+        options.add("➕ Add Dropbox")
+        options.add("➕ Add OneDrive")
+        options.addAll(accounts.map { "🗑️ Remove: ${it.displayName}" })
+        
+        AlertDialog.Builder(this)
+            .setTitle("Manage Cloud Accounts")
+            .setItems(options.toTypedArray()) { _, which ->
+                when (which) {
+                    0 -> startActivityForResult(Intent(this, GoogleSignInActivity::class.java), REQUEST_GOOGLE_SIGNIN)
+                    1 -> startActivityForResult(Intent(this, DropboxOAuthActivity::class.java), REQUEST_DROPBOX_AUTH)
+                    2 -> startActivityForResult(Intent(this, OneDriveOAuthActivity::class.java), REQUEST_ONEDRIVE_AUTH)
+                    else -> {
+                        val accountIndex = which - 3
+                        if (accountIndex >= 0 && accountIndex < accounts.size) {
+                            accountManager.removeAccount(accounts[accountIndex].id)
+                            refreshAccountList()
+                            Toast.makeText(this, "Account removed", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+    
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        
+        if (resultCode == RESULT_OK) {
+            when (requestCode) {
+                REQUEST_GOOGLE_SIGNIN, REQUEST_DROPBOX_AUTH, REQUEST_ONEDRIVE_AUTH -> {
+                    refreshAccountList()
+                    Toast.makeText(this, "Account added successfully", Toast.LENGTH_SHORT).show()
                 }
             }
         }

@@ -10,5 +10,5 @@ description:agent that checks the public repo Rifters/LibreraReader for referenc
 
 # My Agent
 
-Keeps referencing the features and design of LibreraReader as a workable ebook reader that the author perfers as a roadmap to creating his own ebook reader. the repo used is Rifters/Librera.
-when doing any tasks reference this repo to understand and produce how the author has the project envisioned
+Refrences the features and design of LibreraReader as a workable ebook reader that the author perfers as a roadmap to creating his own ebook reader. the repo used is Rifters/LibreraReader 
+when doing any tasks reference this repo to understand and produce how the author has the project envisioned and find solutions to issues in how it is working to complete tasks

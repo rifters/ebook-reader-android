@@ -19,8 +19,11 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.viewpager2.widget.ViewPager2
 import com.github.junrar.Archive
 import com.github.junrar.rarfile.FileHeader
+import com.rifters.ebookreader.adapter.ComicPageAdapter
+import com.rifters.ebookreader.adapter.PdfPageAdapter
 import com.rifters.ebookreader.databinding.ActivityViewerBinding
 import com.rifters.ebookreader.pagination.PaginationManager
 import com.rifters.ebookreader.pagination.PaginationPreferencesKey
@@ -106,6 +109,11 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private val paginationManager by lazy { PaginationManager(this) }
     private var paginationPreferencesKey: PaginationPreferencesKey? = null
     private var paginationBookIdentifier: String? = null
+    
+    // ViewPager2 support for page-based navigation
+    private var pdfPageAdapter: PdfPageAdapter? = null
+    private var comicPageAdapter: ComicPageAdapter? = null
+    private var isUsingViewPager = false
     
     // Night mode state (separate from theme for toggle functionality)
     private var isNightModeEnabled = false
@@ -1062,6 +1070,193 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         )
     }
     
+    /**
+     * Setup ViewPager2 for page-based navigation (PDF, comic books).
+     * Configures orientation based on layout mode and adds page change callback.
+     */
+    private fun setupViewPager() {
+        // Configure orientation based on layout mode
+        when (currentLayoutMode) {
+            LayoutMode.CONTINUOUS_SCROLL -> {
+                binding.viewPager.setVerticalMode()
+            }
+            else -> {
+                binding.viewPager.setHorizontalMode()
+            }
+        }
+        
+        // Add page change callback for progress tracking
+        binding.viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                super.onPageSelected(position)
+                currentPage = position
+                updatePageIndicator()
+                updateProgress(position + 1, getCurrentTotalPages())
+            }
+        })
+        
+        // Handle page clicks to toggle UI visibility
+        pdfPageAdapter?.setOnPageClickListener {
+            toggleUIVisibility()
+        }
+        comicPageAdapter?.setOnPageClickListener {
+            toggleUIVisibility()
+        }
+    }
+    
+    /**
+     * Initialize PDF page adapter and load all pages for ViewPager2
+     */
+    private suspend fun initPdfViewPager() {
+        withContext(Dispatchers.Main) {
+            isUsingViewPager = true
+            pdfPageAdapter = PdfPageAdapter()
+            binding.viewPager.adapter = pdfPageAdapter
+            
+            // Initially set placeholder pages
+            val placeholders = List<Bitmap?>(totalPdfPages) { null }
+            pdfPageAdapter?.setPages(placeholders)
+            
+            // Show ViewPager and hide other views
+            binding.viewPager.visibility = View.VISIBLE
+            binding.pdfImageView.visibility = View.GONE
+            binding.webView.visibility = View.GONE
+            binding.scrollView.visibility = View.GONE
+            
+            setupViewPager()
+        }
+        
+        // Load pages in background
+        withContext(Dispatchers.IO) {
+            loadPdfPagesForViewPager()
+        }
+    }
+    
+    /**
+     * Load PDF pages for ViewPager2 display
+     */
+    private suspend fun loadPdfPagesForViewPager() {
+        val renderer = pdfRenderer ?: return
+        
+        // Load current page and nearby pages first for faster display
+        val pagesToLoadFirst = listOf(
+            currentPage,
+            currentPage - 1,
+            currentPage + 1,
+            currentPage - 2,
+            currentPage + 2
+        ).filter { it in 0 until totalPdfPages }.distinct()
+        
+        for (pageIndex in pagesToLoadFirst) {
+            loadPdfPageBitmap(renderer, pageIndex)
+        }
+        
+        // Then load remaining pages
+        for (pageIndex in 0 until totalPdfPages) {
+            if (pageIndex !in pagesToLoadFirst) {
+                loadPdfPageBitmap(renderer, pageIndex)
+            }
+        }
+    }
+    
+    /**
+     * Load a single PDF page bitmap
+     */
+    private suspend fun loadPdfPageBitmap(renderer: PdfRenderer, pageIndex: Int) {
+        try {
+            val page = renderer.openPage(pageIndex)
+            
+            val bitmap = Bitmap.createBitmap(
+                page.width * 2,
+                page.height * 2,
+                Bitmap.Config.ARGB_8888
+            )
+            
+            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+            page.close()
+            
+            withContext(Dispatchers.Main) {
+                pdfPageAdapter?.updatePage(pageIndex, bitmap)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    
+    /**
+     * Initialize comic page adapter for ViewPager2
+     */
+    private suspend fun initComicViewPager() {
+        withContext(Dispatchers.Main) {
+            isUsingViewPager = true
+            comicPageAdapter = ComicPageAdapter()
+            comicPageAdapter?.setPages(comicImages)
+            binding.viewPager.adapter = comicPageAdapter
+            
+            // Show ViewPager and hide other views
+            binding.viewPager.visibility = View.VISIBLE
+            binding.pdfImageView.visibility = View.GONE
+            binding.webView.visibility = View.GONE
+            binding.scrollView.visibility = View.GONE
+            
+            setupViewPager()
+            
+            // Set current page
+            binding.viewPager.setCurrentItem(currentPage, false)
+        }
+    }
+    
+    /**
+     * Get current total pages based on active format
+     */
+    private fun getCurrentTotalPages(): Int {
+        return when {
+            pdfRenderer != null -> totalPdfPages
+            comicImages.isNotEmpty() -> totalComicPages
+            epubContent != null -> epubContent!!.spine.size
+            else -> 1
+        }
+    }
+    
+    /**
+     * Update page indicator display
+     */
+    private fun updatePageIndicator() {
+        val totalPages = getCurrentTotalPages()
+        if (totalPages > 1) {
+            binding.pageIndicator.text = getString(
+                R.string.page_indicator,
+                currentPage + 1,
+                totalPages
+            )
+            binding.pageIndicator.visibility = View.VISIBLE
+            
+            // Auto-hide after 2 seconds
+            binding.pageIndicator.removeCallbacks(hidePageIndicatorRunnable)
+            binding.pageIndicator.postDelayed(hidePageIndicatorRunnable, 2000)
+        }
+    }
+    
+    private val hidePageIndicatorRunnable = Runnable {
+        binding.pageIndicator.visibility = View.GONE
+    }
+    
+    /**
+     * Toggle UI visibility (toolbar and bottom bar)
+     */
+    private fun toggleUIVisibility() {
+        val appBarLayout = binding.appBarLayout
+        val bottomBar = binding.bottomAppBar
+        
+        if (appBarLayout.visibility == View.VISIBLE) {
+            appBarLayout.visibility = View.GONE
+            bottomBar.visibility = View.GONE
+        } else {
+            appBarLayout.visibility = View.VISIBLE
+            bottomBar.visibility = View.VISIBLE
+        }
+    }
+    
     private fun loadBookFromIntent() {
         val bookId = intent.getLongExtra("book_id", -1L)
         val bookPath = intent.getStringExtra("book_path")
@@ -1263,12 +1458,6 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 
                 withContext(Dispatchers.Main) {
                     binding.loadingProgressBar.visibility = View.GONE
-                    binding.webView.visibility = View.GONE
-                    binding.scrollView.visibility = View.GONE
-                    binding.pdfImageView.visibility = View.VISIBLE
-                    binding.pdfImageView.setImageBitmap(null)
-                    
-                    renderPdfPage(currentPage)
                     
                     // TTS is not supported for PDF (image-based format)
                     currentTextContent = ""
@@ -1277,6 +1466,15 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     // Apply theme background
                     val preferences = preferencesManager.getReadingPreferences()
                     applyThemeToUI(preferences)
+                }
+                
+                // Initialize ViewPager2 for page-based navigation
+                initPdfViewPager()
+                
+                // Set current page after ViewPager is ready
+                withContext(Dispatchers.Main) {
+                    binding.viewPager.setCurrentItem(currentPage, false)
+                    updatePageIndicator()
                 }
             } catch (e: SecurityException) {
                 e.printStackTrace()
@@ -2134,20 +2332,15 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
                 
                 withContext(Dispatchers.Main) {
-                    binding.apply {
-                        loadingProgressBar.visibility = View.GONE
-                        pdfImageView.visibility = View.VISIBLE
-                        webView.visibility = View.GONE
-                        scrollView.visibility = View.GONE
-                        textView.visibility = View.GONE
-                    }
+                    binding.loadingProgressBar.visibility = View.GONE
                     
                     // TTS is not supported for comic books (image-based format)
                     currentTextContent = ""
                     updateTtsButtons()
-                    
-                    renderComicPage(currentPage)
                 }
+                
+                // Initialize ViewPager2 for comic page navigation
+                initComicViewPager()
             } catch (e: java.util.zip.ZipException) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
@@ -2257,20 +2450,15 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
                 
                 withContext(Dispatchers.Main) {
-                    binding.apply {
-                        loadingProgressBar.visibility = View.GONE
-                        pdfImageView.visibility = View.VISIBLE
-                        webView.visibility = View.GONE
-                        scrollView.visibility = View.GONE
-                        textView.visibility = View.GONE
-                    }
+                    binding.loadingProgressBar.visibility = View.GONE
                     
                     // TTS is not supported for comic books (image-based format)
                     currentTextContent = ""
                     updateTtsButtons()
-                    
-                    renderComicPage(currentPage)
                 }
+                
+                // Initialize ViewPager2 for comic page navigation
+                initComicViewPager()
             } catch (e: com.github.junrar.exception.RarException) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
@@ -2604,20 +2792,15 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 totalComicPages = comicImages.size
                 
                 withContext(Dispatchers.Main) {
-                    binding.apply {
-                        loadingProgressBar.visibility = View.GONE
-                        pdfImageView.visibility = View.VISIBLE
-                        webView.visibility = View.GONE
-                        scrollView.visibility = View.GONE
-                        textView.visibility = View.GONE
-                    }
+                    binding.loadingProgressBar.visibility = View.GONE
                     
                     // TTS is not supported for comic books (image-based format)
                     currentTextContent = ""
                     updateTtsButtons()
-                    
-                    renderComicPage(currentPage)
                 }
+                
+                // Initialize ViewPager2 for comic page navigation
+                initComicViewPager()
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
@@ -2683,20 +2866,15 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 totalComicPages = comicImages.size
                 
                 withContext(Dispatchers.Main) {
-                    binding.apply {
-                        loadingProgressBar.visibility = View.GONE
-                        pdfImageView.visibility = View.VISIBLE
-                        webView.visibility = View.GONE
-                        scrollView.visibility = View.GONE
-                        textView.visibility = View.GONE
-                    }
+                    binding.loadingProgressBar.visibility = View.GONE
                     
                     // TTS is not supported for comic books (image-based format)
                     currentTextContent = ""
                     updateTtsButtons()
-                    
-                    renderComicPage(currentPage)
                 }
+                
+                // Initialize ViewPager2 for comic page navigation
+                initComicViewPager()
             } catch (e: Exception) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
@@ -2763,7 +2941,15 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
     
     private fun previousPage() {
-        if (pdfRenderer != null && totalPdfPages > 0) {
+        if (isUsingViewPager && binding.viewPager.visibility == View.VISIBLE) {
+            // Use ViewPager2 navigation
+            val current = binding.viewPager.currentItem
+            if (current > 0) {
+                binding.viewPager.currentItem = current - 1
+            } else {
+                Toast.makeText(this, "Already at first page", Toast.LENGTH_SHORT).show()
+            }
+        } else if (pdfRenderer != null && totalPdfPages > 0) {
             if (currentPage > 0) {
                 currentPage--
                 renderPdfPage(currentPage)
@@ -2807,7 +2993,16 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
     
     private fun nextPage() {
-        if (pdfRenderer != null && totalPdfPages > 0) {
+        if (isUsingViewPager && binding.viewPager.visibility == View.VISIBLE) {
+            // Use ViewPager2 navigation
+            val current = binding.viewPager.currentItem
+            val total = binding.viewPager.adapter?.itemCount ?: 0
+            if (current < total - 1) {
+                binding.viewPager.currentItem = current + 1
+            } else {
+                Toast.makeText(this, "Already at last page", Toast.LENGTH_SHORT).show()
+            }
+        } else if (pdfRenderer != null && totalPdfPages > 0) {
             if (currentPage < totalPdfPages - 1) {
                 currentPage++
                 renderPdfPage(currentPage)

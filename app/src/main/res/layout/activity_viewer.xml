@@ -49,6 +49,13 @@
             android:scaleType="fitCenter"
             android:visibility="gone" />
 
+        <!-- ViewPager2 for page-based navigation (PDF, Comic books) -->
+        <com.rifters.ebookreader.view.CustomViewPager2
+            android:id="@+id/viewPager"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+
         <!-- WebView for EPUB content -->
         <WebView
             android:id="@+id/webView"

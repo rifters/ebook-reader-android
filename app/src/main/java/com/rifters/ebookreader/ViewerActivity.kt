@@ -3222,19 +3222,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
     
     private fun navigateToBookmark(bookmark: Bookmark) {
-        if (isUsingViewPager && binding.viewPager.visibility == View.VISIBLE) {
-            // Use ViewPager2 navigation for PDFs and comic books
-            if (bookmark.page in 0 until (binding.viewPager.adapter?.itemCount ?: 0)) {
-                binding.viewPager.setCurrentItem(bookmark.page, true)
-                Toast.makeText(
-                    this,
-                    getString(R.string.page_format, bookmark.page + 1),
-                    Toast.LENGTH_SHORT
-                ).show()
-            } else {
-                Toast.makeText(this, "Invalid page number", Toast.LENGTH_SHORT).show()
-            }
-        } else if (pdfRenderer != null && totalPdfPages > 0) {
+        if (pdfRenderer != null && totalPdfPages > 0) {
             // For PDF files, navigate to the bookmarked page
             if (bookmark.page in 0 until totalPdfPages) {
                 currentPage = bookmark.page

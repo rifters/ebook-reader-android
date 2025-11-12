@@ -5,6 +5,8 @@ import android.content.SharedPreferences
 import com.rifters.ebookreader.model.ReadingPreferences
 import com.rifters.ebookreader.model.ReadingTheme
 import org.json.JSONObject
+import com.rifters.ebookreader.model.LayoutMode
+import com.rifters.ebookreader.util.TtsReplacementProcessor
 
 class PreferencesManager(context: Context) {
     
@@ -20,6 +22,7 @@ class PreferencesManager(context: Context) {
             putFloat(KEY_LINE_SPACING, preferences.lineSpacing)
             putInt(KEY_MARGIN_HORIZONTAL, preferences.marginHorizontal)
             putInt(KEY_MARGIN_VERTICAL, preferences.marginVertical)
+            putString(KEY_LAYOUT_MODE, preferences.layoutMode.name)
             apply()
         }
     }
@@ -36,6 +39,12 @@ class PreferencesManager(context: Context) {
         val lineSpacing = prefs.getFloat(KEY_LINE_SPACING, 1.5f)
         val marginHorizontal = prefs.getInt(KEY_MARGIN_HORIZONTAL, 16)
         val marginVertical = prefs.getInt(KEY_MARGIN_VERTICAL, 16)
+        val layoutModeName = prefs.getString(KEY_LAYOUT_MODE, LayoutMode.SINGLE_COLUMN.name)
+        val layoutMode = try {
+            LayoutMode.valueOf(layoutModeName ?: LayoutMode.SINGLE_COLUMN.name)
+        } catch (_: IllegalArgumentException) {
+            LayoutMode.SINGLE_COLUMN
+        }
         
         return ReadingPreferences(
             fontFamily = fontFamily,
@@ -43,7 +52,8 @@ class PreferencesManager(context: Context) {
             theme = theme,
             lineSpacing = lineSpacing,
             marginHorizontal = marginHorizontal,
-            marginVertical = marginVertical
+            marginVertical = marginVertical,
+            layoutMode = layoutMode
         )
     }
     
@@ -108,7 +118,16 @@ class PreferencesManager(context: Context) {
     }
     
     fun getTtsReplacements(): String {
-        return prefs.getString(KEY_TTS_REPLACEMENTS, getDefaultTtsReplacements()) ?: getDefaultTtsReplacements()
+        val default = getDefaultTtsReplacements()
+        val stored = prefs.getString(KEY_TTS_REPLACEMENTS, null) ?: return default
+
+        return if (TtsReplacementProcessor.isValidReplacementsJson(stored)) {
+            stored
+        } else {
+            android.util.Log.w("PreferencesManager", "Invalid TTS replacements JSON detected, resetting to default")
+            prefs.edit().putString(KEY_TTS_REPLACEMENTS, default).apply()
+            default
+        }
     }
     
     fun setTtsReplacements(replacements: String) {
@@ -163,6 +182,7 @@ class PreferencesManager(context: Context) {
         private const val KEY_LINE_SPACING = "line_spacing"
         private const val KEY_MARGIN_HORIZONTAL = "margin_horizontal"
         private const val KEY_MARGIN_VERTICAL = "margin_vertical"
+        private const val KEY_LAYOUT_MODE = "layout_mode"
         private const val KEY_SYNC_ENABLED = "sync_enabled"
         private const val KEY_AUTO_SYNC = "auto_sync"
         private const val KEY_LAST_SYNC = "last_sync_timestamp"

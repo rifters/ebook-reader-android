@@ -5,7 +5,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import androidx.core.view.isVisible
 import com.rifters.ebookreader.databinding.BottomSheetReadingSettingsBinding
+import com.rifters.ebookreader.model.LayoutMode
 import com.rifters.ebookreader.model.ReadingPreferences
 import com.rifters.ebookreader.model.ReadingTheme
 import com.rifters.ebookreader.util.PreferencesManager
@@ -65,6 +67,19 @@ class ReadingSettingsBottomSheet : BottomSheetDialogFragment() {
             // Set margins
             binding.marginSlider.value = prefs.marginHorizontal.toFloat()
             binding.marginValue.text = "${prefs.marginHorizontal}dp"
+
+            // Set layout mode
+            when (prefs.layoutMode) {
+                LayoutMode.SINGLE_COLUMN -> binding.layoutModePaged.isChecked = true
+                LayoutMode.CONTINUOUS_SCROLL -> binding.layoutModeContinuous.isChecked = true
+                LayoutMode.TWO_COLUMN -> binding.layoutModeTwoColumn.isChecked = true
+            }
+            updateLayoutModeIndicator(prefs.layoutMode)
+        }
+
+        if (binding.layoutModeChipGroup.checkedChipId == View.NO_ID) {
+            binding.layoutModePaged.isChecked = true
+            updateLayoutModeIndicator(LayoutMode.SINGLE_COLUMN)
         }
         
         // Set TTS settings
@@ -90,6 +105,11 @@ class ReadingSettingsBottomSheet : BottomSheetDialogFragment() {
         // Margin slider
         binding.marginSlider.addOnChangeListener { _, value, _ ->
             binding.marginValue.text = "${value.toInt()}dp"
+        }
+
+        binding.layoutModeChipGroup.setOnCheckedStateChangeListener { _, checkedIds ->
+            val layoutMode = layoutModeForChipId(checkedIds.firstOrNull())
+            updateLayoutModeIndicator(layoutMode)
         }
         
         // TTS rate slider
@@ -125,6 +145,7 @@ class ReadingSettingsBottomSheet : BottomSheetDialogFragment() {
         
         val lineSpacing = binding.lineSpacingSlider.value
         val margin = binding.marginSlider.value.toInt()
+        val layoutMode = layoutModeForChipId(binding.layoutModeChipGroup.checkedChipId)
         
         val preferences = ReadingPreferences(
             fontFamily = fontFamily,
@@ -132,7 +153,8 @@ class ReadingSettingsBottomSheet : BottomSheetDialogFragment() {
             theme = theme,
             lineSpacing = lineSpacing,
             marginHorizontal = margin,
-            marginVertical = margin
+            marginVertical = margin,
+            layoutMode = layoutMode
         )
         
         // Save reading preferences
@@ -146,6 +168,18 @@ class ReadingSettingsBottomSheet : BottomSheetDialogFragment() {
         
         onSettingsApplied?.invoke(preferences)
         dismiss()
+    }
+
+    private fun layoutModeForChipId(chipId: Int?): LayoutMode {
+        return when (chipId) {
+            R.id.layoutModeTwoColumn -> LayoutMode.TWO_COLUMN
+            R.id.layoutModeContinuous -> LayoutMode.CONTINUOUS_SCROLL
+            else -> LayoutMode.SINGLE_COLUMN
+        }
+    }
+
+    private fun updateLayoutModeIndicator(layoutMode: LayoutMode) {
+        binding.continuousScrollIndicator.isVisible = layoutMode == LayoutMode.CONTINUOUS_SCROLL
     }
     
     fun setOnSettingsAppliedListener(listener: (ReadingPreferences) -> Unit) {

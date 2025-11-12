@@ -23,6 +23,7 @@ import com.github.junrar.Archive
 import com.github.junrar.rarfile.FileHeader
 import com.rifters.ebookreader.databinding.ActivityViewerBinding
 import com.rifters.ebookreader.model.Bookmark
+import com.rifters.ebookreader.model.LayoutMode
 import com.rifters.ebookreader.model.ReadingPreferences
 import com.rifters.ebookreader.util.FileValidator
 import com.rifters.ebookreader.util.PreferencesManager
@@ -54,6 +55,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var currentBook: Book? = null
     private var currentPage: Int = 0
     private var currentProgressPercent: Float = 0f
+    private var currentLayoutMode: LayoutMode = LayoutMode.SINGLE_COLUMN
+    private val continuousScrollSyncRunnable = Runnable { syncContinuousScrollPosition() }
     
     // PDF variables
     private var pdfRenderer: PdfRenderer? = null
@@ -117,6 +120,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         
         // Apply saved theme on activity load
         val preferences = preferencesManager.getReadingPreferences()
+    currentLayoutMode = preferences.layoutMode
         applyThemeToUI(preferences)
         
         loadBookFromIntent()
@@ -421,6 +425,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun onWebViewContentReady() {
         val preferences = preferencesManager.getReadingPreferences()
+        currentLayoutMode = preferences.layoutMode
         applyWebViewStyles(preferences)
         if (isNightModeEnabled) {
             applyNightModeToWebView()
@@ -442,6 +447,13 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 onWebViewContentReady()
+            }
+        }
+
+        binding.webView.setOnScrollChangeListener { _, _, _, _, _ ->
+            if (currentLayoutMode == LayoutMode.CONTINUOUS_SCROLL && epubContent != null) {
+                binding.webView.removeCallbacks(continuousScrollSyncRunnable)
+                binding.webView.postDelayed(continuousScrollSyncRunnable, 120)
             }
         }
     }
@@ -1546,54 +1558,103 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     /**
-     * Initialize EPUB pagination by applying CSS column layout and measuring the number of "pages"
-     * (columns) for the currently loaded chapter. This is a per-chapter pagination strategy.
+     * Initialize EPUB pagination based on the selected layout mode and compute page information
+     * for the currently loaded chapter.
      */
     private fun initEpubPagination() {
         try {
-            val js = """
-                (function() {
-                    try {
-                        document.documentElement.style.overflow = 'hidden';
-                        // Make the body flow into columns equal to the viewport width
-                        var pageWidth = window.innerWidth;
-                        document.body.style.webkitColumnGap = '0px';
-                        document.body.style.columnGap = '0px';
-                        document.body.style.webkitColumnWidth = pageWidth + 'px';
-                        document.body.style.columnWidth = pageWidth + 'px';
-                        document.body.style.webkitColumnFill = 'auto';
-                        document.documentElement.style.margin = '0';
-                        document.body.style.margin = '0';
-                        document.body.style.padding = '0';
-                        // Force reflow and compute total width
-                        var totalWidth = Math.max(document.body.scrollWidth, document.documentElement.scrollWidth);
-                        var pageCount = Math.max(1, Math.ceil(totalWidth / pageWidth));
-                        return pageCount;
-                    } catch(e) { return 1; }
-                })();
-            """.trimIndent()
+            val layoutMode = currentLayoutMode
+            val js = when (layoutMode) {
+                LayoutMode.CONTINUOUS_SCROLL -> """
+                    (function() {
+                        try {
+                            document.documentElement.style.overflowY = 'auto';
+                            document.documentElement.style.overflowX = 'hidden';
+                            document.body.style.margin = '0';
+                            document.body.style.padding = '0';
+                            document.body.style.webkitColumnGap = '0px';
+                            document.body.style.columnGap = '0px';
+                            document.body.style.webkitColumnWidth = 'auto';
+                            document.body.style.columnWidth = 'auto';
+                            document.body.style.webkitColumnCount = 'auto';
+                            document.body.style.columnCount = 'auto';
+                            var pageHeight = window.innerHeight || document.documentElement.clientHeight || 1;
+                            var totalHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, pageHeight);
+                            var pageCount = Math.max(1, Math.ceil(totalHeight / pageHeight));
+                            return JSON.stringify({ pageCount: pageCount });
+                        } catch(e) {
+                            return JSON.stringify({ pageCount: 1 });
+                        }
+                    })();
+                """.trimIndent()
+                LayoutMode.TWO_COLUMN -> """
+                    (function() {
+                        try {
+                            document.documentElement.style.overflow = 'hidden';
+                            var pageWidth = window.innerWidth || document.documentElement.clientWidth || 1;
+                            var columnWidth = Math.max(Math.floor(pageWidth / 2), 240);
+                            document.body.style.webkitColumnGap = '32px';
+                            document.body.style.columnGap = '32px';
+                            document.body.style.webkitColumnWidth = columnWidth + 'px';
+                            document.body.style.columnWidth = columnWidth + 'px';
+                            document.body.style.webkitColumnFill = 'auto';
+                            document.body.style.columnFill = 'auto';
+                            document.body.style.margin = '0';
+                            document.body.style.padding = '0';
+                            var totalWidth = Math.max(document.body.scrollWidth, document.documentElement.scrollWidth);
+                            var pageCount = Math.max(1, Math.ceil(totalWidth / pageWidth));
+                            return JSON.stringify({ pageCount: pageCount });
+                        } catch(e) {
+                            return JSON.stringify({ pageCount: 1 });
+                        }
+                    })();
+                """.trimIndent()
+                else -> """
+                    (function() {
+                        try {
+                            document.documentElement.style.overflow = 'hidden';
+                            var pageWidth = window.innerWidth || document.documentElement.clientWidth || 1;
+                            document.body.style.webkitColumnGap = '0px';
+                            document.body.style.columnGap = '0px';
+                            document.body.style.webkitColumnWidth = pageWidth + 'px';
+                            document.body.style.columnWidth = pageWidth + 'px';
+                            document.body.style.webkitColumnFill = 'auto';
+                            document.body.style.columnFill = 'auto';
+                            document.body.style.margin = '0';
+                            document.body.style.padding = '0';
+                            var totalWidth = Math.max(document.body.scrollWidth, document.documentElement.scrollWidth);
+                            var pageCount = Math.max(1, Math.ceil(totalWidth / pageWidth));
+                            return JSON.stringify({ pageCount: pageCount });
+                        } catch(e) {
+                            return JSON.stringify({ pageCount: 1 });
+                        }
+                    })();
+                """.trimIndent()
+            }
 
             binding.webView.evaluateJavascript(js) { result ->
                 try {
-                    val cleaned = result?.replace("\"", "") ?: "1"
-                    val count = cleaned.toIntOrNull() ?: 1
+                    val count = parsePageCount(result)
                     epubPageCount = count
 
-                    // If there's a pending request to jump to a specific page after load, honor it
                     if (pendingEpubPageAfterLoad != null) {
                         val requested = pendingEpubPageAfterLoad!!
                         val target = if (requested == -1) epubPageCount - 1 else requested
                         epubCurrentPageInChapter = target.coerceIn(0, maxOf(0, epubPageCount - 1))
                         pendingEpubPageAfterLoad = null
                     } else {
-                        // Ensure current page index is in range
                         if (epubCurrentPageInChapter < 0) epubCurrentPageInChapter = 0
                         if (epubCurrentPageInChapter >= epubPageCount) epubCurrentPageInChapter = epubPageCount - 1
                     }
 
                     updatePageSliderConfiguration()
-                    // Scroll to current page
-                    gotoEpubPage(epubCurrentPageInChapter)
+                    if (epubPageCount > 0) {
+                        gotoEpubPage(epubCurrentPageInChapter)
+                    }
+
+                    if (layoutMode == LayoutMode.CONTINUOUS_SCROLL) {
+                        binding.webView.postDelayed(continuousScrollSyncRunnable, 160)
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                     epubPageCount = 0
@@ -1602,6 +1663,72 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         } catch (e: Exception) {
             e.printStackTrace()
             epubPageCount = 0
+        }
+    }
+
+    private fun parsePageCount(result: String?): Int {
+        if (result.isNullOrBlank()) {
+            return 1
+        }
+
+        return try {
+            val trimmed = result.trim()
+            if (trimmed.startsWith("{")) {
+                val json = JSONObject(trimmed)
+                json.optInt("pageCount", 1).coerceAtLeast(1)
+            } else {
+                trimmed.replace("\"", "").toIntOrNull()?.coerceAtLeast(1) ?: 1
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("ViewerActivity", "Failed to parse page count: $result", e)
+            1
+        }
+    }
+
+    private fun syncContinuousScrollPosition() {
+        if (currentLayoutMode != LayoutMode.CONTINUOUS_SCROLL || epubContent == null) {
+            return
+        }
+
+        binding.webView.evaluateJavascript(
+            """
+            (function() {
+                try {
+                    var pageHeight = window.innerHeight || document.documentElement.clientHeight || 1;
+                    var scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+                    var totalHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, pageHeight);
+                    var pageCount = Math.max(1, Math.ceil(totalHeight / pageHeight));
+                    var currentPage = Math.floor(scrollY / pageHeight);
+                    currentPage = Math.max(0, Math.min(pageCount - 1, currentPage));
+                    return JSON.stringify({ pageCount: pageCount, currentPage: currentPage });
+                } catch (e) {
+                    return JSON.stringify({ pageCount: 1, currentPage: 0 });
+                }
+            })();
+            """.trimIndent()
+        ) { result ->
+            try {
+                if (result.isNullOrBlank()) {
+                    return@evaluateJavascript
+                }
+                val data = JSONObject(result)
+                val newCount = data.optInt("pageCount", 1).coerceAtLeast(1)
+                val newPage = data.optInt("currentPage", 0).coerceIn(0, newCount - 1)
+                val countChanged = newCount != epubPageCount
+                val pageChanged = newPage != epubCurrentPageInChapter
+                if (!countChanged && !pageChanged) {
+                    return@evaluateJavascript
+                }
+
+                epubPageCount = newCount
+                epubCurrentPageInChapter = newPage
+                updatePageSliderConfiguration()
+                updatePageIndicator(epubCurrentPageInChapter + 1, epubPageCount)
+                syncPageSliderValue()
+                persistEpubProgress()
+            } catch (e: Exception) {
+                android.util.Log.w("ViewerActivity", "Failed to sync continuous scroll position", e)
+            }
         }
     }
 
@@ -1614,16 +1741,30 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             else -> pageIndex
         }
 
-        val js = """
-            (function() {
-                try {
-                    var page = $safeIndex;
-                    var x = page * window.innerWidth;
-                    window.scrollTo(x, 0);
-                    return true;
-                } catch(e) { return false; }
-            })();
-        """.trimIndent()
+        val js = when (currentLayoutMode) {
+            LayoutMode.CONTINUOUS_SCROLL -> """
+                (function() {
+                    try {
+                        var page = $safeIndex;
+                        var viewport = window.innerHeight || document.documentElement.clientHeight || 1;
+                        var y = page * viewport;
+                        window.scrollTo(0, y);
+                        return true;
+                    } catch(e) { return false; }
+                })();
+            """.trimIndent()
+            else -> """
+                (function() {
+                    try {
+                        var page = $safeIndex;
+                        var viewport = window.innerWidth || document.documentElement.clientWidth || 1;
+                        var x = page * viewport;
+                        window.scrollTo(x, 0);
+                        return true;
+                    } catch(e) { return false; }
+                })();
+            """.trimIndent()
+        }
 
         binding.webView.evaluateJavascript(js) { _ ->
             epubCurrentPageInChapter = safeIndex
@@ -1632,6 +1773,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             updatePageIndicator(epubCurrentPageInChapter + 1, epubPageCount)
             syncPageSliderValue()
             persistEpubProgress()
+            if (currentLayoutMode == LayoutMode.CONTINUOUS_SCROLL) {
+                binding.webView.postDelayed(continuousScrollSyncRunnable, 160)
+            }
             prepareTtsNodesInWebView()
         }
     }
@@ -2974,6 +3118,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun applyReadingPreferences(preferences: ReadingPreferences) {
         // Apply theme to all UI elements
         applyThemeToUI(preferences)
+        currentLayoutMode = preferences.layoutMode
         
         // Apply to TextView (for TXT files)
         if (binding.textView.visibility == View.VISIBLE) {
@@ -2994,6 +3139,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         // Apply to WebView (for EPUB files)
         if (binding.webView.visibility == View.VISIBLE) {
             applyWebViewStyles(preferences)
+            if (epubContent != null) {
+                binding.webView.postDelayed({ initEpubPagination() }, 150)
+            }
         }
         
         // Apply to ScrollView container
@@ -3003,8 +3151,23 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun applyWebViewStyles(preferences: ReadingPreferences) {
         val backgroundColor = String.format("#%06X", 0xFFFFFF and preferences.theme.backgroundColor)
         val textColor = String.format("#%06X", 0xFFFFFF and preferences.theme.textColor)
+        val layoutCss = when (preferences.layoutMode) {
+            LayoutMode.CONTINUOUS_SCROLL -> """
+                html, body {
+                    overflow-y: auto;
+                    overflow-x: hidden;
+                }
+            """.trimIndent()
+            else -> """
+                html, body {
+                    overflow-y: hidden;
+                    overflow-x: hidden;
+                }
+            """.trimIndent()
+        }
         
         val css = """
+            $layoutCss
             body {
                 font-family: ${preferences.fontFamily} !important;
                 font-size: ${preferences.fontSize}px !important;
@@ -3061,6 +3224,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             textToSpeech?.stop()
             textToSpeech?.shutdown()
         }
+
+        binding.webView.removeCallbacks(continuousScrollSyncRunnable)
         
         // Close PDF renderer
         try {

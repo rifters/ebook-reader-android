@@ -81,6 +81,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var ttsTextChunks: List<TtsTextSplitter.TextChunk> = emptyList()
     private var currentTtsChunkIndex: Int = 0
     private var ttsSavedPosition: Int = 0
+    private var pendingTtsAutoContinue = false
     
     // Table of Contents
     private var tableOfContents: List<com.rifters.ebookreader.model.TableOfContentsItem> = emptyList()
@@ -172,12 +173,15 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                                     
                                     // For EPUB, try to continue to next chapter automatically
                                     if (epubContent != null && currentEpubChapter < epubContent!!.spine.size - 1) {
-                                        android.util.Log.d("ViewerActivity", "Auto-continuing to next chapter: ${currentEpubChapter + 1}")
+                                        val nextChapterIndex = currentEpubChapter + 1
+                                        android.util.Log.d("ViewerActivity", "Auto-continuing to next chapter: $nextChapterIndex")
                                         Toast.makeText(this@ViewerActivity, "Continuing to next chapter...", Toast.LENGTH_SHORT).show()
-                                        
+
+                                        pendingTtsAutoContinue = true
+
                                         // Load next chapter and continue TTS
-                                        renderEpubChapter(currentEpubChapter + 1)
-                                        
+                                        renderEpubChapter(nextChapterIndex)
+
                                         // Wait for chapter to load, then resume TTS
                                         binding.root.postDelayed({
                                             if (isTtsPlaying) {
@@ -481,6 +485,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     
     private fun playTTS() {
         android.util.Log.d("ViewerActivity", "playTTS called - textToSpeech: ${textToSpeech != null}, isTtsInitialized: $isTtsInitialized")
+        pendingTtsAutoContinue = false
         
         // Check if TTS engine exists
         if (textToSpeech == null) {
@@ -624,6 +629,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun pauseTTS() {
         textToSpeech?.stop()
         isTtsPlaying = false
+        pendingTtsAutoContinue = false
         // Reset chunks so they'll be regenerated on next play
         ttsTextChunks = emptyList()
         currentTtsChunkIndex = 0
@@ -638,8 +644,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
      * This ensures TTS doesn't get stuck on old content
      */
     private fun resetTtsStateForNewContent() {
-        // Stop any ongoing TTS playback
-        if (isTtsPlaying) {
+        // Stop any ongoing TTS playback unless we are auto-continuing to the next chapter
+        if (pendingTtsAutoContinue) {
+            textToSpeech?.stop()
+        } else if (isTtsPlaying) {
             textToSpeech?.stop()
             isTtsPlaying = false
         }
@@ -652,7 +660,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         // Remove any existing highlights
         removeTextHighlights()
         
-        android.util.Log.d("ViewerActivity", "TTS state reset for new content")
+        android.util.Log.d("ViewerActivity", "TTS state reset for new content (autoContinue=$pendingTtsAutoContinue)")
     }
     
     private fun updateTtsProgress() {

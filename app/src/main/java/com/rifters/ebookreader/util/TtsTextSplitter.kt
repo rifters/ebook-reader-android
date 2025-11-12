@@ -9,7 +9,7 @@ import android.text.Html
 object TtsTextSplitter {
     
     // Maximum chunk size for TTS (characters)
-    private const val MAX_CHUNK_SIZE = 4000
+    const val MAX_CHUNK_SIZE = 4000
     
     /**
      * Extract plain text from HTML content with better formatting preservation.
@@ -80,18 +80,11 @@ object TtsTextSplitter {
             }
             
             // If paragraph is too long, split it further by sentences
-            if (trimmedParagraph.length > MAX_CHUNK_SIZE) {
-                val sentences = splitIntoSentences(trimmedParagraph)
-                var sentencePosition = currentPosition
-                
-                for (sentence in sentences) {
-                    if (sentence.isNotEmpty()) {
-                        chunks.add(TextChunk(sentence, sentencePosition, ChunkType.SENTENCE))
-                        sentencePosition += sentence.length
-                    }
-                }
-            } else {
-                chunks.add(TextChunk(trimmedParagraph, currentPosition, ChunkType.PARAGRAPH))
+            val chunkSegments = splitParagraphIntoChunks(trimmedParagraph)
+            var segmentPosition = currentPosition
+            chunkSegments.forEach { segment ->
+                chunks.add(TextChunk(segment, segmentPosition, ChunkType.PARAGRAPH))
+                segmentPosition += segment.length
             }
             
             currentPosition += paragraph.length + 2 // Account for split delimiter
@@ -129,6 +122,97 @@ object TtsTextSplitter {
         }
         
         return sentences
+    }
+
+    /**
+     * Split a single paragraph into TTS-friendly chunks that respect the max length.
+     */
+    fun splitParagraphIntoChunks(paragraph: String): List<String> {
+        val trimmed = paragraph.trim()
+        if (trimmed.isEmpty()) {
+            return emptyList()
+        }
+
+        if (trimmed.length <= MAX_CHUNK_SIZE) {
+            return listOf(trimmed)
+        }
+
+        val sentences = splitIntoSentences(trimmed)
+        if (sentences.isEmpty()) {
+            return listOf(trimmed)
+        }
+
+        val chunks = mutableListOf<String>()
+        val currentChunk = StringBuilder()
+
+        for (sentence in sentences) {
+            if (sentence.isEmpty()) continue
+
+            val sentenceWithSpace = if (sentence.endsWith(" ")) sentence else "$sentence "
+            if (currentChunk.isEmpty()) {
+                currentChunk.append(sentenceWithSpace)
+                continue
+            }
+
+            if (currentChunk.length + sentenceWithSpace.length <= MAX_CHUNK_SIZE) {
+                currentChunk.append(sentenceWithSpace)
+            } else {
+                chunks.add(currentChunk.toString().trim())
+                currentChunk.clear()
+                currentChunk.append(sentenceWithSpace)
+            }
+        }
+
+        if (currentChunk.isNotEmpty()) {
+            chunks.add(currentChunk.toString().trim())
+        }
+
+        // Ensure no chunk exceeds the maximum size; fall back to word-based splitting if needed
+        return chunks.flatMap { chunk ->
+            if (chunk.length <= MAX_CHUNK_SIZE) {
+                listOf(chunk)
+            } else {
+                splitByWords(chunk)
+            }
+        }
+    }
+
+    private fun splitByWords(text: String): List<String> {
+        if (text.length <= MAX_CHUNK_SIZE) {
+            return listOf(text)
+        }
+
+        val words = text.split(Regex("\\s+"))
+        val chunks = mutableListOf<String>()
+        val currentChunk = StringBuilder()
+
+        for (word in words) {
+            if (word.isEmpty()) continue
+            val candidateLength = if (currentChunk.isEmpty()) word.length else currentChunk.length + 1 + word.length
+            if (candidateLength > MAX_CHUNK_SIZE) {
+                if (currentChunk.isNotEmpty()) {
+                    chunks.add(currentChunk.toString())
+                    currentChunk.clear()
+                }
+                if (word.length > MAX_CHUNK_SIZE) {
+                    // Split extremely long word by characters
+                    chunks.addAll(word.chunked(MAX_CHUNK_SIZE))
+                } else {
+                    currentChunk.append(word)
+                }
+            } else {
+                if (currentChunk.isNotEmpty()) {
+                    currentChunk.append(' ')
+                }
+                currentChunk.append(word)
+            }
+        }
+
+        if (currentChunk.isNotEmpty()) {
+            chunks.add(currentChunk.toString())
+        }
+
+        return chunks
     }
     
     /**

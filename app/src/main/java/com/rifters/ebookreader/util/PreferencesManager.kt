@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.rifters.ebookreader.model.ReadingPreferences
 import com.rifters.ebookreader.model.ReadingTheme
+import org.json.JSONObject
 
 class PreferencesManager(context: Context) {
     
@@ -115,25 +116,29 @@ class PreferencesManager(context: Context) {
     }
     
     private fun getDefaultTtsReplacements(): String {
-        // Default replacements based on LibreraReader patterns
-        return """
-            {
-                "*[()\"«»""'/\\[\\]]": " ",
-                "*[?!:;–—―]": ". ",
-                "it's": "it is",
-                "can't": "cannot",
-                "won't": "will not",
-                "don't": "do not",
-                "I'm": "I am",
-                "you're": "you are",
-                "he's": "he is",
-                "she's": "she is",
-                "we're": "we are",
-                "they're": "they are",
-                "...": " [pause] ",
-                "…": " [pause] "
+        return try {
+            val replacements = JSONObject().apply {
+                put("*[()\\\"«»'\\\\[\\\\]]", " ")
+                put("*[?!:;–—―]", ". ")
+                put("it's", "it is")
+                put("can't", "cannot")
+                put("won't", "will not")
+                put("don't", "do not")
+                put("I'm", "I am")
+                put("you're", "you are")
+                put("he's", "he is")
+                put("she's", "she is")
+                put("we're", "we are")
+                put("they're", "they are")
+                put("...", " [pause] ")
+                put("…", " [pause] ")
             }
-        """.trimIndent()
+            replacements.toString()
+        } catch (e: Exception) {
+            // Fallback to a minimal valid JSON object if something goes wrong
+            android.util.Log.e("PreferencesManager", "Failed to build default TTS replacements", e)
+            "{}"
+        }
     }
     
     companion object {

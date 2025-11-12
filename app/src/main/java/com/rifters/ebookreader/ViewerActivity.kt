@@ -12,6 +12,7 @@ import android.util.TypedValue
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.widget.FrameLayout
 import android.widget.Toast
@@ -36,6 +37,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.zip.ZipFile as ApacheZipFile
+import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -78,10 +80,17 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var isTtsInitialized = false
     private var isTtsPlaying = false
     private var currentTextContent: String = ""
-    private var ttsTextChunks: List<TtsTextSplitter.TextChunk> = emptyList()
+    private var ttsChunks: List<TtsChunk> = emptyList()
     private var currentTtsChunkIndex: Int = 0
     private var ttsSavedPosition: Int = 0
     private var pendingTtsAutoContinue = false
+    private var pendingTtsPlayAfterPreparation = false
+
+    private data class TtsChunk(
+        val text: String,
+        val startPosition: Int,
+        val paragraphIndex: Int
+    )
     
     // Table of Contents
     private var tableOfContents: List<com.rifters.ebookreader.model.TableOfContentsItem> = emptyList()
@@ -160,7 +169,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             // Move to next chunk if still playing
                             if (isTtsPlaying) {
                                 currentTtsChunkIndex++
-                                if (currentTtsChunkIndex < ttsTextChunks.size) {
+                                if (currentTtsChunkIndex < ttsChunks.size) {
                                     // Continue to next chunk with a brief pause
                                     binding.root.postDelayed({
                                         if (isTtsPlaying) {
@@ -268,6 +277,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
     
+    @Suppress("UNUSED_PARAMETER")
     private fun highlightSpokenText(start: Int, end: Int) {
         // This is called by onRangeStart for fine-grained word-level highlighting
         // Currently not used as we're doing paragraph-level highlighting instead
@@ -278,84 +288,28 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
      * Highlight the current TTS chunk being read in the WebView
      */
     private fun highlightCurrentChunk() {
-        if (binding.webView.visibility != View.VISIBLE || ttsTextChunks.isEmpty()) {
+        if (binding.webView.visibility != View.VISIBLE || ttsChunks.isEmpty()) {
             return
         }
         
-        if (currentTtsChunkIndex >= ttsTextChunks.size) {
+        if (currentTtsChunkIndex >= ttsChunks.size) {
             return
         }
         
-        val chunk = ttsTextChunks[currentTtsChunkIndex]
-        val textToHighlight = chunk.text.trim()
-        
-        // Escape special characters for JavaScript string
-        val escapedText = textToHighlight
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("'", "\\'")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-        
-        // Get highlight color from preferences or use default
-        val highlightColor = "#FFD54F" // Material Yellow 300
-        
+        val paragraphIndex = ttsChunks[currentTtsChunkIndex].paragraphIndex
+
         binding.webView.evaluateJavascript(
             """
             (function() {
-                // Remove previous highlights
-                var oldHighlights = document.querySelectorAll('.tts-highlight');
-                oldHighlights.forEach(function(el) {
-                    var parent = el.parentNode;
-                    parent.replaceChild(document.createTextNode(el.textContent), el);
-                    parent.normalize();
+                var nodes = document.querySelectorAll('[data-tts-chunk]');
+                nodes.forEach(function(node) {
+                    node.classList.remove('tts-highlight');
                 });
-                
-                // Function to highlight text in a node
-                function highlightTextInNode(node, searchText) {
-                    if (node.nodeType === 3) { // Text node
-                        var text = node.textContent;
-                        var index = text.indexOf(searchText);
-                        
-                        if (index >= 0) {
-                            var span = document.createElement('span');
-                            span.className = 'tts-highlight';
-                            span.style.backgroundColor = '$highlightColor';
-                            span.style.transition = 'background-color 0.3s';
-                            
-                            var before = document.createTextNode(text.substring(0, index));
-                            var highlighted = document.createTextNode(searchText);
-                            var after = document.createTextNode(text.substring(index + searchText.length));
-                            
-                            span.appendChild(highlighted);
-                            
-                            var parent = node.parentNode;
-                            parent.insertBefore(before, node);
-                            parent.insertBefore(span, node);
-                            parent.insertBefore(after, node);
-                            parent.removeChild(node);
-                            
-                            // Scroll to highlighted element
-                            span.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            return true;
-                        }
-                    } else if (node.nodeType === 1 && node.childNodes && !/(script|style)/i.test(node.tagName)) {
-                        for (var i = 0; i < node.childNodes.length; i++) {
-                            if (highlightTextInNode(node.childNodes[i], searchText)) {
-                                return true;
-                            }
-                        }
-                    }
-                    return false;
+                var target = document.querySelector('[data-tts-chunk="$paragraphIndex"]');
+                if (target) {
+                    target.classList.add('tts-highlight');
+                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
-                
-                // Try to highlight the text
-                var searchText = "$escapedText";
-                // Limit search text for better matching (first 100 chars)
-                if (searchText.length > 100) {
-                    searchText = searchText.substring(0, 100);
-                }
-                highlightTextInNode(document.body, searchText);
             })();
             """.trimIndent(),
             null
@@ -373,16 +327,163 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         binding.webView.evaluateJavascript(
             """
             (function() {
-                var highlights = document.querySelectorAll('.tts-highlight');
-                highlights.forEach(function(el) {
-                    var parent = el.parentNode;
-                    parent.replaceChild(document.createTextNode(el.textContent), el);
-                    parent.normalize();
+                var nodes = document.querySelectorAll('[data-tts-chunk].tts-highlight');
+                nodes.forEach(function(node) {
+                    node.classList.remove('tts-highlight');
                 });
             })();
             """.trimIndent(),
             null
         )
+    }
+
+    private fun prepareTtsNodesInWebView() {
+        if (binding.webView.visibility != View.VISIBLE) {
+            return
+        }
+
+        binding.webView.evaluateJavascript(
+            """
+            (function() {
+                try {
+                    var styleId = 'tts-chunk-style';
+                    if (!document.getElementById(styleId)) {
+                        var style = document.createElement('style');
+                        style.id = styleId;
+                        style.innerHTML = '[data-tts-chunk]{cursor:pointer;transition:background-color 0.2s ease-in-out;} .tts-highlight{background-color: rgba(255, 213, 79, 0.35) !important;}';
+                        document.head.appendChild(style);
+                    }
+
+                    var existing = document.querySelectorAll('[data-tts-chunk]');
+                    existing.forEach(function(node) {
+                        node.classList.remove('tts-highlight');
+                        node.classList.remove('tts-chunk');
+                        node.removeAttribute('data-tts-chunk');
+                    });
+
+                    var selectors = 'p, li, blockquote, h1, h2, h3, h4, h5, h6, pre, article, section';
+                    var nodes = document.querySelectorAll(selectors);
+                    var chunks = [];
+                    var index = 0;
+
+                    nodes.forEach(function(node) {
+                        if (!node) { return; }
+                        if (node.closest('[data-tts-ignore="true"]')) { return; }
+                        var text = node.innerText || '';
+                        text = text.replace(/\s+/g, ' ').trim();
+                        if (!text) { return; }
+                        node.setAttribute('data-tts-chunk', index);
+                        node.classList.add('tts-chunk');
+                        node.classList.remove('tts-highlight');
+                        chunks.push({ index: index, text: text });
+                        index++;
+                    });
+
+                    if (!window.__ebookTtsClickHandlerAttached) {
+                        document.addEventListener('click', function(event) {
+                            var target = event.target.closest('[data-tts-chunk]');
+                            if (!target) { return; }
+                            var idx = parseInt(target.getAttribute('data-tts-chunk'));
+                            if (isNaN(idx)) { return; }
+                            if (window.AndroidTtsBridge && AndroidTtsBridge.onChunkTapped) {
+                                AndroidTtsBridge.onChunkTapped(idx);
+                            }
+                        }, true);
+                        window.__ebookTtsClickHandlerAttached = true;
+                    }
+
+                    if (window.AndroidTtsBridge && AndroidTtsBridge.onChunksPrepared) {
+                        AndroidTtsBridge.onChunksPrepared(JSON.stringify(chunks));
+                    }
+                } catch (e) {
+                    console.error('prepareTtsNodesInWebView error', e);
+                }
+            })();
+            """.trimIndent(),
+            null
+        )
+    }
+
+    private fun attachTtsBridge(webView: WebView) {
+        try {
+            webView.removeJavascriptInterface("AndroidTtsBridge")
+        } catch (_: Throwable) {
+            // Ignore if interface was not previously added
+        }
+        webView.addJavascriptInterface(TtsWebBridge(), "AndroidTtsBridge")
+    }
+
+    private fun onWebViewContentReady() {
+        val preferences = preferencesManager.getReadingPreferences()
+        applyWebViewStyles(preferences)
+        if (isNightModeEnabled) {
+            applyNightModeToWebView()
+        }
+        prepareTtsNodesInWebView()
+    }
+
+    private fun setupGenericWebView() {
+        binding.webView.settings.apply {
+            javaScriptEnabled = true
+            builtInZoomControls = true
+            displayZoomControls = false
+            loadWithOverviewMode = true
+            useWideViewPort = true
+            domStorageEnabled = true
+        }
+        attachTtsBridge(binding.webView)
+        binding.webView.webViewClient = object : android.webkit.WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                onWebViewContentReady()
+            }
+        }
+    }
+
+    private fun buildChunksFromParagraphs(paragraphs: List<Pair<Int, String>>): List<TtsChunk> {
+        if (paragraphs.isEmpty()) {
+            return emptyList()
+        }
+
+        val replacementsEnabled = preferencesManager.isTtsReplacementsEnabled()
+        val replacementsJson = preferencesManager.getTtsReplacements()
+        val chunks = mutableListOf<TtsChunk>()
+        var position = 0
+
+        paragraphs.forEach { (paragraphIndex, originalText) ->
+            var processed = originalText
+            if (replacementsEnabled) {
+                processed = TtsReplacementProcessor.applyReplacements(processed, replacementsJson, true)
+            }
+
+            val segments = TtsTextSplitter.splitParagraphIntoChunks(processed)
+            segments.forEach inner@ { segment ->
+                val trimmed = segment.trim()
+                if (trimmed.isEmpty()) {
+                    return@inner
+                }
+                chunks.add(TtsChunk(trimmed, position, paragraphIndex))
+                position += trimmed.length + 1
+            }
+        }
+
+        return chunks
+    }
+
+    private fun findChunkIndexForPosition(position: Int): Int {
+        if (ttsChunks.isEmpty()) {
+            return 0
+        }
+
+        for (index in ttsChunks.indices) {
+            val chunk = ttsChunks[index]
+            val end = chunk.startPosition + chunk.text.length
+            if (position in chunk.startPosition until end) {
+                return index
+            }
+        }
+
+        return ttsChunks.lastIndex
     }
     
     private fun setupToolbar() {
@@ -486,20 +587,17 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun playTTS() {
         android.util.Log.d("ViewerActivity", "playTTS called - textToSpeech: ${textToSpeech != null}, isTtsInitialized: $isTtsInitialized")
         pendingTtsAutoContinue = false
-        
-        // Check if TTS engine exists
+        pendingTtsPlayAfterPreparation = false
+
         if (textToSpeech == null) {
             android.util.Log.e("ViewerActivity", "TTS engine is null, attempting to reinitialize")
-            // Try to reinitialize TTS
             setupTTS()
             Toast.makeText(this, "TTS engine not available. Initializing... Please try again in a moment.", Toast.LENGTH_LONG).show()
             return
         }
-        
-        // If not initialized, wait for initialization
+
         if (!isTtsInitialized) {
             Toast.makeText(this, "TTS is initializing, please wait...", Toast.LENGTH_SHORT).show()
-            // Set up a delayed retry inspired by LibreraReader's approach
             binding.root.postDelayed({
                 if (isTtsInitialized) {
                     playTTS()
@@ -509,63 +607,85 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }, 1500)
             return
         }
-        
+
         if (currentTextContent.isEmpty()) {
             Toast.makeText(this, "No text content available for this format (image-based formats not supported)", Toast.LENGTH_SHORT).show()
             return
         }
-        
-        // Extract plain text from HTML with improved formatting and apply TTS replacements
-        val replacementsEnabled = preferencesManager.isTtsReplacementsEnabled()
-        val replacementsJson = preferencesManager.getTtsReplacements()
-        
-        val textToSpeak = if (currentTextContent.contains("<")) {
-            TtsTextSplitter.extractTextFromHtml(
-                currentTextContent,
-                applyReplacements = true,
-                replacementsJson = replacementsJson,
-                replacementsEnabled = replacementsEnabled
-            )
-        } else {
-            // For plain text, still apply replacements
-            if (replacementsEnabled) {
-                TtsReplacementProcessor.applyReplacements(currentTextContent, replacementsJson, replacementsEnabled)
+
+        val usingWebView = binding.webView.visibility == View.VISIBLE
+
+        if (usingWebView) {
+            if (ttsChunks.isEmpty()) {
+                pendingTtsPlayAfterPreparation = true
+                Toast.makeText(this, "Preparing text for TTS...", Toast.LENGTH_SHORT).show()
+                prepareTtsNodesInWebView()
+                return
+            }
+        } else if (ttsChunks.isEmpty()) {
+            val replacementsEnabled = preferencesManager.isTtsReplacementsEnabled()
+            val replacementsJson = preferencesManager.getTtsReplacements()
+
+            val textToSpeak = if (currentTextContent.contains("<")) {
+                TtsTextSplitter.extractTextFromHtml(
+                    currentTextContent,
+                    applyReplacements = true,
+                    replacementsJson = replacementsJson,
+                    replacementsEnabled = replacementsEnabled
+                )
             } else {
-                currentTextContent
+                if (replacementsEnabled) {
+                    TtsReplacementProcessor.applyReplacements(currentTextContent, replacementsJson, true)
+                } else {
+                    currentTextContent
+                }
+            }
+
+            if (textToSpeak.trim().isEmpty()) {
+                Toast.makeText(this, "Could not extract readable text from content. The file may be empty or corrupted.", Toast.LENGTH_LONG).show()
+                return
+            }
+
+            val paragraphChunks = TtsTextSplitter.splitIntoParagraphs(textToSpeak)
+            var position = 0
+            ttsChunks = paragraphChunks.mapIndexedNotNull { index, chunk ->
+                val trimmed = chunk.text.trim()
+                if (trimmed.isEmpty()) {
+                    return@mapIndexedNotNull null
+                }
+                val ttsChunk = TtsChunk(trimmed, position, index)
+                position += trimmed.length + 1
+                ttsChunk
+            }
+
+            if (ttsChunks.isEmpty()) {
+                Toast.makeText(this, "Could not split text for TTS reading", Toast.LENGTH_SHORT).show()
+                return
             }
         }
-        
-        if (textToSpeak.trim().isEmpty()) {
-            Toast.makeText(this, "Could not extract readable text from content. The file may be empty or corrupted.", Toast.LENGTH_LONG).show()
-            return
+
+        if (ttsSavedPosition > 0 && currentTtsChunkIndex == 0) {
+            currentTtsChunkIndex = findChunkIndexForPosition(ttsSavedPosition)
+            android.util.Log.d("ViewerActivity", "Resuming TTS from saved position $ttsSavedPosition (chunk $currentTtsChunkIndex)")
+            Toast.makeText(this, "Resuming from saved position", Toast.LENGTH_SHORT).show()
+            ttsSavedPosition = 0
         }
-        
-        // Split text into paragraphs for natural reading
-        if (ttsTextChunks.isEmpty()) {
-            ttsTextChunks = TtsTextSplitter.splitIntoParagraphs(textToSpeak)
-            
-            // Restore saved TTS position if available
-            if (ttsSavedPosition > 0) {
-                currentTtsChunkIndex = TtsTextSplitter.findChunkAtPosition(ttsTextChunks, ttsSavedPosition)
-                android.util.Log.d("ViewerActivity", "Resuming TTS from saved position $ttsSavedPosition (chunk $currentTtsChunkIndex)")
-                Toast.makeText(this, "Resuming from saved position", Toast.LENGTH_SHORT).show()
-            } else {
-                currentTtsChunkIndex = 0
-            }
+
+        if (currentTtsChunkIndex >= ttsChunks.size) {
+            currentTtsChunkIndex = 0
         }
-        
-        if (ttsTextChunks.isEmpty()) {
-            Toast.makeText(this, "Could not split text for TTS reading", Toast.LENGTH_SHORT).show()
-            return
-        }
-        
-        android.util.Log.d("ViewerActivity", "Playing TTS chunk $currentTtsChunkIndex of ${ttsTextChunks.size}")
-        
+
+        android.util.Log.d("ViewerActivity", "Playing TTS chunk $currentTtsChunkIndex of ${ttsChunks.size}")
         speakCurrentChunk()
     }
     
     private fun speakCurrentChunk() {
-        if (currentTtsChunkIndex >= ttsTextChunks.size) {
+        if (ttsChunks.isEmpty()) {
+            Toast.makeText(this, "No text prepared for TTS", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (currentTtsChunkIndex >= ttsChunks.size) {
             // Finished reading all chunks
             android.util.Log.d("ViewerActivity", "Finished reading all TTS chunks")
             isTtsPlaying = false
@@ -574,7 +694,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             return
         }
         
-        val chunk = ttsTextChunks[currentTtsChunkIndex]
+        val chunk = ttsChunks[currentTtsChunkIndex]
         
         // Get TTS settings from preferences
         val ttsRate = preferencesManager.getTtsRate()
@@ -630,8 +750,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         textToSpeech?.stop()
         isTtsPlaying = false
         pendingTtsAutoContinue = false
+        pendingTtsPlayAfterPreparation = false
         // Reset chunks so they'll be regenerated on next play
-        ttsTextChunks = emptyList()
+        ttsChunks = emptyList()
         currentTtsChunkIndex = 0
         updateTtsButtons()
         hideTtsProgress()
@@ -653,7 +774,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
         
         // Clear TTS chunks and reset position
-        ttsTextChunks = emptyList()
+        ttsChunks = emptyList()
+        pendingTtsPlayAfterPreparation = false
         currentTtsChunkIndex = 0
         ttsSavedPosition = 0 // Reset saved position for new content
         
@@ -664,12 +786,12 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
     
     private fun updateTtsProgress() {
-        if (ttsTextChunks.isEmpty()) {
+        if (ttsChunks.isEmpty()) {
             return
         }
         
-        val currentChunk = ttsTextChunks[currentTtsChunkIndex]
-        val progressPercentage = ((currentTtsChunkIndex + 1) * 100 / ttsTextChunks.size)
+        val currentChunk = ttsChunks[currentTtsChunkIndex]
+        val progressPercentage = ((currentTtsChunkIndex + 1) * 100 / ttsChunks.size)
         
         // Show progress with text preview (first 50 chars)
         val preview = if (currentChunk.text.length > 50) {
@@ -700,6 +822,83 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
         }
         bottomSheet.show(supportFragmentManager, TtsControlsBottomSheet.TAG)
+    }
+
+    private inner class TtsWebBridge {
+        @JavascriptInterface
+        fun onChunksPrepared(payload: String) {
+            runOnUiThread {
+                try {
+                    val array = JSONArray(payload)
+                    val paragraphs = mutableListOf<Pair<Int, String>>()
+                    for (i in 0 until array.length()) {
+                        val entry = array.optJSONObject(i) ?: continue
+                        val paragraphIndex = entry.optInt("index", -1)
+                        if (paragraphIndex < 0) continue
+                        val text = entry.optString("text", "").trim()
+                        if (text.isEmpty()) continue
+                        paragraphs.add(paragraphIndex to text)
+                    }
+
+                    if (paragraphs.isEmpty()) {
+                        ttsChunks = emptyList()
+                        updateTtsButtons()
+                        return@runOnUiThread
+                    }
+
+                    ttsChunks = buildChunksFromParagraphs(paragraphs)
+                    if (ttsChunks.isEmpty()) {
+                        updateTtsButtons()
+                        return@runOnUiThread
+                    }
+
+                    if (ttsSavedPosition > 0) {
+                        currentTtsChunkIndex = findChunkIndexForPosition(ttsSavedPosition)
+                    }
+
+                    currentTtsChunkIndex = currentTtsChunkIndex.coerceIn(0, ttsChunks.lastIndex)
+                    updateTtsButtons()
+
+                    if (pendingTtsPlayAfterPreparation || (pendingTtsAutoContinue && isTtsPlaying)) {
+                        pendingTtsPlayAfterPreparation = false
+                        pendingTtsAutoContinue = false
+                        speakCurrentChunk()
+                    } else if (isTtsPlaying) {
+                        speakCurrentChunk()
+                    } else {
+                        highlightCurrentChunk()
+                    }
+                } catch (e: JSONException) {
+                    android.util.Log.e("ViewerActivity", "Failed to parse TTS chunks from WebView", e)
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun onChunkTapped(index: Int) {
+            runOnUiThread {
+                if (ttsChunks.isEmpty()) {
+                    return@runOnUiThread
+                }
+
+                val targetIndex = ttsChunks.indexOfFirst { it.paragraphIndex == index }
+                if (targetIndex == -1) {
+                    return@runOnUiThread
+                }
+
+                currentTtsChunkIndex = targetIndex
+                ttsSavedPosition = ttsChunks[targetIndex].startPosition
+                highlightCurrentChunk()
+                updateTtsProgress()
+
+                if (isTtsPlaying) {
+                    textToSpeech?.stop()
+                    speakCurrentChunk()
+                } else {
+                    Toast.makeText(this@ViewerActivity, "Ready to play from tapped paragraph", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
     
     private fun setupBottomBar() {
@@ -1157,17 +1356,13 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             useWideViewPort = true
                             domStorageEnabled = true
                         }
+
+                        attachTtsBridge(webView)
                         
                         webView.webViewClient = object : android.webkit.WebViewClient() {
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
-                                val preferences = preferencesManager.getReadingPreferences()
-                                applyWebViewStyles(preferences)
-                                
-                                // Apply night mode if enabled
-                                if (isNightModeEnabled) {
-                                    applyNightModeToWebView()
-                                }
+                                onWebViewContentReady()
                             }
                         }
                     }
@@ -1317,6 +1512,13 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         max-width: 100% !important;
                         height: auto !important;
                     }
+                    [data-tts-chunk] {
+                        cursor: pointer;
+                        transition: background-color 0.2s ease-in-out;
+                    }
+                    .tts-highlight {
+                        background-color: rgba(255, 213, 79, 0.35) !important;
+                    }
                 </style>
             </head>
             <body>
@@ -1413,6 +1615,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             updatePageIndicator(epubCurrentPageInChapter + 1, epubPageCount)
             syncPageSliderValue()
             persistEpubProgress()
+            prepareTtsNodesInWebView()
         }
     }
     
@@ -1488,20 +1691,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         scrollView.visibility = View.GONE
                         textView.visibility = View.GONE
                         
-                        webView.settings.apply {
-                            javaScriptEnabled = true
-                            builtInZoomControls = true
-                            displayZoomControls = false
-                        }
-                        
-                        webView.webViewClient = object : android.webkit.WebViewClient() {
-                            override fun onPageFinished(view: WebView?, url: String?) {
-                                super.onPageFinished(view, url)
-                                val preferences = preferencesManager.getReadingPreferences()
-                                applyWebViewStyles(preferences)
-                            }
-                        }
-                        
+                        setupGenericWebView()
+
                         webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
                         currentTextContent = content
                         
@@ -1882,6 +2073,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 scrollView.visibility = View.GONE
                 textView.visibility = View.GONE
                 
+                setupGenericWebView()
+
                 webView.loadDataWithBaseURL(null, fb2Content.htmlContent, "text/html", "UTF-8", null)
                 currentTextContent = fb2Content.htmlContent
                 
@@ -1920,6 +2113,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 scrollView.visibility = View.GONE
                 textView.visibility = View.GONE
                 
+                setupGenericWebView()
+
                 webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
                 currentTextContent = htmlContent
                 
@@ -1946,6 +2141,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 scrollView.visibility = View.GONE
                 textView.visibility = View.GONE
                 
+                setupGenericWebView()
+
                 webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
                 currentTextContent = htmlContent
                 
@@ -2021,6 +2218,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 scrollView.visibility = View.GONE
                 textView.visibility = View.GONE
                 
+                setupGenericWebView()
+
                 webView.loadDataWithBaseURL(null, docxContent.htmlContent, "text/html", "UTF-8", null)
                 currentTextContent = docxContent.htmlContent
                 
@@ -2804,6 +3003,13 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
             p, div, span, h1, h2, h3, h4, h5, h6 {
                 color: $textColor !important;
+            }
+            [data-tts-chunk] {
+                cursor: pointer !important;
+                transition: background-color 0.2s ease-in-out !important;
+            }
+            .tts-highlight {
+                background-color: rgba(255, 213, 79, 0.35) !important;
             }
         """.trimIndent()
         

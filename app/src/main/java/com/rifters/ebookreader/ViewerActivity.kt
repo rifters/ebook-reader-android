@@ -1078,10 +1078,12 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         // Configure orientation based on layout mode
         when (currentLayoutMode) {
             LayoutMode.CONTINUOUS_SCROLL -> {
-                binding.viewPager.setVerticalMode()
+                binding.viewPager.orientation = ViewPager2.ORIENTATION_VERTICAL
+                binding.viewPager.setPageTransformer(VerticalPageTransformer())
             }
             else -> {
-                binding.viewPager.setHorizontalMode()
+                binding.viewPager.orientation = ViewPager2.ORIENTATION_HORIZONTAL
+                binding.viewPager.setPageTransformer(null)
             }
         }
         
@@ -1235,10 +1237,6 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             binding.pageIndicator.removeCallbacks(hidePageIndicatorRunnable)
             binding.pageIndicator.postDelayed(hidePageIndicatorRunnable, 2000)
         }
-    }
-    
-    private val hidePageIndicatorRunnable = Runnable {
-        binding.pageIndicator.visibility = View.GONE
     }
     
     /**
@@ -3305,7 +3303,16 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // For PDF files, navigate to the page
             if (tocItem.page in 0 until totalPdfPages) {
                 currentPage = tocItem.page
-                renderPdfPage(currentPage)
+                
+                // Check if ViewPager2 is active
+                if (isUsingViewPager && binding.viewPager.visibility == View.VISIBLE) {
+                    // Use ViewPager2 navigation when ViewPager is active
+                    binding.viewPager.setCurrentItem(tocItem.page, true)
+                } else {
+                    // Use traditional single-page rendering
+                    renderPdfPage(currentPage)
+                }
+                
                 Toast.makeText(
                     this,
                     getString(R.string.page_format, tocItem.page + 1),
@@ -3480,10 +3487,12 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // Update ViewPager2 orientation based on layout mode
             when (preferences.layoutMode) {
                 LayoutMode.CONTINUOUS_SCROLL -> {
-                    binding.viewPager.setVerticalMode()
+                    binding.viewPager.orientation = ViewPager2.ORIENTATION_VERTICAL
+                    binding.viewPager.setPageTransformer(VerticalPageTransformer())
                 }
                 else -> {
-                    binding.viewPager.setHorizontalMode()
+                    binding.viewPager.orientation = ViewPager2.ORIENTATION_HORIZONTAL
+                    binding.viewPager.setPageTransformer(null)
                 }
             }
         }
@@ -3608,5 +3617,33 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         comicImages.clear()
         
         super.onDestroy()
+    }
+    
+    /**
+     * Page transformer for smooth vertical scrolling animations
+     */
+    private class VerticalPageTransformer : ViewPager2.PageTransformer {
+        override fun transformPage(view: View, position: Float) {
+            when {
+                position < -1 -> {
+                    // Page is way off-screen to the left
+                    view.alpha = 0f
+                }
+                position <= 1 -> {
+                    // Page is visible or moving
+                    view.alpha = 1f
+                    
+                    // Apply parallax effect for smooth scrolling feel
+                    view.translationX = view.width * -position
+                    
+                    val yPosition = position * view.height
+                    view.translationY = yPosition
+                }
+                else -> {
+                    // Page is way off-screen to the right
+                    view.alpha = 0f
+                }
+            }
+        }
     }
 }

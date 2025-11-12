@@ -15,6 +15,12 @@
         app:showAsAction="ifRoom" />
 
     <item
+        android:id="@+id/action_go_to_page"
+        android:icon="@android:drawable/ic_menu_set_as"
+        android:title="@string/go_to_page"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_view_bookmarks"
         android:icon="@android:drawable/btn_star"
         android:title="@string/view_bookmarks"

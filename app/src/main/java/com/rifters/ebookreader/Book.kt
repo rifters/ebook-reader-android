@@ -20,6 +20,8 @@ data class Book(
     val coverImagePath: String? = null,
     val totalPages: Int = 0,
     val currentPage: Int = 0,
+    val epubCurrentPageInChapter: Int = 0,
+    val epubChapterPagePositions: String = "",
     val isCompleted: Boolean = false,
     val progressPercentage: Float = 0f,
     val rating: Float = 0f, // 0-5 star rating

@@ -3,7 +3,7 @@ package com.rifters.ebookreader.cloud
 import android.util.Log
 import com.yandex.disk.rest.Credentials
 import com.yandex.disk.rest.RestClient
-import com.yandex.disk.rest.json.Resource
+import com.yandex.disk.rest.ResourcesArgs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -48,7 +48,12 @@ class YandexDiskProvider(private val accessToken: String? = null) : CloudStorage
             val client = restClient ?: return@withContext emptyList()
             val targetPath = path ?: "disk:/"
             
-            val resource = client.getResources(targetPath)
+            val resourceArgs = ResourcesArgs.Builder()
+                .setPath(targetPath)
+                .setLimit(200)
+                .build()
+
+            val resource = client.getResources(resourceArgs)
             val items = resource.resourceList?.items ?: emptyList()
             
             items.map { item ->
@@ -73,11 +78,7 @@ class YandexDiskProvider(private val accessToken: String? = null) : CloudStorage
         try {
             val client = restClient ?: return@withContext null
             
-            // Get download link
-            val link = client.getDownloadLink(file.path)
-            
-            // Download from link (you would use OkHttp or similar)
-            // For now, return null as placeholder
+            Log.w(TAG, "Download not implemented for YandexDisk")
             null
         } catch (e: Exception) {
             Log.e(TAG, "Error downloading file", e)

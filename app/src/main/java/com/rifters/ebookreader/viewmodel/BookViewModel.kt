@@ -120,6 +120,28 @@ class BookViewModel(application: Application) : AndroidViewModel(application) {
                 syncRepository.markBookForSync(bookId)
             }
         }
+
+    fun updateEpubProgress(
+        bookId: Long,
+        currentChapter: Int,
+        pageInChapter: Int,
+        chapterPositions: String,
+        progressPercentage: Float
+    ) = viewModelScope.launch(Dispatchers.IO) {
+        val lastOpened = System.currentTimeMillis()
+        bookDao.updateEpubProgress(
+            bookId = bookId,
+            currentChapter = currentChapter,
+            pageInChapter = pageInChapter,
+            chapterPositions = chapterPositions,
+            progressPercentage = progressPercentage,
+            lastOpened = lastOpened
+        )
+
+        if (prefsManager.isSyncEnabled() && prefsManager.isAutoSyncEnabled()) {
+            syncRepository.markBookForSync(bookId)
+        }
+    }
     
     fun updateCompletionStatus(bookId: Long, isCompleted: Boolean) = 
         viewModelScope.launch(Dispatchers.IO) {

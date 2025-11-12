@@ -65,6 +65,16 @@ interface BookDao {
     
     @Query("UPDATE books SET currentPage = :currentPage, progressPercentage = :progressPercentage, lastOpened = :lastOpened WHERE id = :bookId")
     suspend fun updateProgress(bookId: Long, currentPage: Int, progressPercentage: Float, lastOpened: Long)
+
+    @Query("UPDATE books SET currentPage = :currentChapter, epubCurrentPageInChapter = :pageInChapter, epubChapterPagePositions = :chapterPositions, progressPercentage = :progressPercentage, lastOpened = :lastOpened WHERE id = :bookId")
+    suspend fun updateEpubProgress(
+        bookId: Long,
+        currentChapter: Int,
+        pageInChapter: Int,
+        chapterPositions: String,
+        progressPercentage: Float,
+        lastOpened: Long
+    )
     
     @Query("UPDATE books SET isCompleted = :isCompleted WHERE id = :bookId")
     suspend fun updateCompletionStatus(bookId: Long, isCompleted: Boolean)

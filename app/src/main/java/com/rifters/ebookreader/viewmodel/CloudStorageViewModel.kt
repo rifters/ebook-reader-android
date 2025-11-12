@@ -38,7 +38,7 @@ class CloudStorageViewModel(application: Application) : AndroidViewModel(applica
         currentAccount = account
         // Update active provider based on account
         val provider = when (account.provider) {
-            "GoogleDrive" -> GoogleDriveProvider(account.token)
+            "GoogleDrive" -> GoogleDriveProvider(getApplication())
             "Dropbox" -> DropboxProvider(account.token)
             "OneDrive" -> OneDriveProvider(account.token)
             "MEGA" -> MegaProvider(account.token)

@@ -104,13 +104,17 @@ dependencies {
     implementation("com.dropbox.core:dropbox-core-sdk:5.4.5")
     
     // Cloud Storage - OneDrive (Microsoft Graph API)
-    implementation("com.microsoft.identity.client:msal:4.9.0")
+    implementation(platform("io.opentelemetry:opentelemetry-bom:1.18.0"))
+    implementation("com.microsoft.identity.client:msal:4.9.0") {
+        exclude(group = "io.opentelemetry")
+        exclude(group = "com.microsoft.device.display")
+    }
     implementation("com.microsoft.graph:microsoft-graph:5.77.0") {
         exclude(group = "com.google.guava", module = "guava-jdk5")
     }
     
     // Cloud Storage - Box
-    implementation("com.box:box-android-sdk:5.6.0")
+    implementation("com.box:box-android-sdk:5.0.0")
     
     // Cloud Storage - MEGA
     // Note: MEGA SDK requires native build setup. Using REST API approach instead.

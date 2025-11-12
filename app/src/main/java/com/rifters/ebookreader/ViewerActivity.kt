@@ -7,11 +7,13 @@ import android.graphics.pdf.PdfRenderer
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.speech.tts.TextToSpeech
+import android.text.InputType
 import android.util.TypedValue
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.webkit.WebView
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
@@ -26,10 +28,16 @@ import com.rifters.ebookreader.util.PreferencesManager
 import com.rifters.ebookreader.util.TtsReplacementProcessor
 import com.rifters.ebookreader.util.TtsTextSplitter
 import com.rifters.ebookreader.viewmodel.BookViewModel
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.slider.Slider
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.zip.ZipFile as ApacheZipFile
+import org.json.JSONException
+import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.RandomAccessFile
@@ -57,6 +65,13 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     // EPUB variables
     private var epubContent: com.rifters.ebookreader.util.EpubParser.EpubContent? = null
     private var currentEpubChapter: Int = 0
+    // EPUB pagination (per-chapter) - uses CSS columns in WebView to simulate pages
+    private var epubPageCount: Int = 0
+    private var epubCurrentPageInChapter: Int = 0
+    // If non-null, requested page index to jump to after a chapter is loaded. Use -1 to indicate "last page".
+    private var pendingEpubPageAfterLoad: Int? = null
+    private var epubChapterPagePositions: MutableMap<Int, Int> = mutableMapOf()
+    private var suppressPageSliderCallback: Boolean = false
     
     // TTS variables
     private var textToSpeech: TextToSpeech? = null
@@ -83,6 +98,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         
         setupToolbar()
         setupBottomBar()
+        setupPageSlider()
         setupTTS()
         
         // Load night mode state
@@ -388,6 +404,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
             R.id.action_view_highlights -> {
                 showHighlights()
+                true
+            }
+            R.id.action_go_to_page -> {
+                showGoToPageDialog()
                 true
             }
             R.id.action_table_of_contents -> {
@@ -696,6 +716,105 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             true
         }
     }
+
+    private fun setupPageSlider() {
+        binding.pageSlider.apply {
+            addOnSliderTouchListener(object : Slider.OnSliderTouchListener {
+                override fun onStartTrackingTouch(slider: Slider) {
+                    if (epubPageCount > 0) {
+                        showEpubPagePreview(slider.value.toInt())
+                    }
+                }
+
+                override fun onStopTrackingTouch(slider: Slider) {
+                    if (epubPageCount > 0) {
+                        gotoEpubPage(slider.value.toInt() - 1)
+                    }
+                }
+            })
+
+            addOnChangeListener { _, value, fromUser ->
+                if (!fromUser || suppressPageSliderCallback || epubPageCount <= 0) {
+                    return@addOnChangeListener
+                }
+                showEpubPagePreview(value.toInt())
+            }
+        }
+    }
+
+    private fun showEpubPagePreview(pageNumber: Int) {
+        if (epubPageCount <= 0) {
+            return
+        }
+
+        val safeNumber = pageNumber.coerceIn(1, epubPageCount)
+        binding.pageIndicator.visibility = View.VISIBLE
+        binding.pageIndicator.text = getString(R.string.page_indicator, safeNumber, epubPageCount)
+        binding.pageIndicator.removeCallbacks(hidePageIndicatorRunnable)
+    }
+
+    private fun updatePageSliderConfiguration() {
+        val slider = binding.pageSlider
+        if (epubContent == null || epubPageCount <= 1) {
+            slider.visibility = View.GONE
+            return
+        }
+
+        slider.visibility = View.VISIBLE
+        suppressPageSliderCallback = true
+        slider.valueFrom = 1f
+        slider.valueTo = epubPageCount.toFloat()
+        slider.stepSize = 1f
+        slider.value = (epubCurrentPageInChapter + 1).coerceIn(1, epubPageCount).toFloat()
+        slider.isEnabled = true
+        suppressPageSliderCallback = false
+    }
+
+    private fun syncPageSliderValue() {
+        val slider = binding.pageSlider
+        if (slider.visibility != View.VISIBLE || epubPageCount <= 0) {
+            return
+        }
+
+        suppressPageSliderCallback = true
+        val maxPage = epubPageCount.coerceAtLeast(1)
+        slider.value = (epubCurrentPageInChapter + 1).coerceIn(1, maxPage).toFloat()
+        suppressPageSliderCallback = false
+    }
+
+    private fun persistEpubProgress() {
+        val book = currentBook ?: return
+        val totalChapters = epubContent?.spine?.size ?: return
+        if (totalChapters <= 0) {
+            return
+        }
+
+        epubChapterPagePositions[currentEpubChapter] = epubCurrentPageInChapter
+        val serializedPositions = serializeEpubPositions()
+        val pageFraction = if (epubPageCount > 0) {
+            (epubCurrentPageInChapter + 1).toFloat() / epubPageCount
+        } else {
+            0f
+        }
+        val progress = (((currentEpubChapter.toFloat() + pageFraction) / totalChapters) * 100f)
+            .coerceIn(0f, 100f)
+
+        currentProgressPercent = progress
+        currentBook = book.copy(
+            currentPage = currentEpubChapter,
+            epubCurrentPageInChapter = epubCurrentPageInChapter,
+            epubChapterPagePositions = serializedPositions,
+            progressPercentage = progress
+        )
+
+        bookViewModel.updateEpubProgress(
+            bookId = book.id,
+            currentChapter = currentEpubChapter,
+            pageInChapter = epubCurrentPageInChapter,
+            chapterPositions = serializedPositions,
+            progressPercentage = progress
+        )
+    }
     
     private fun loadBookFromIntent() {
         val bookId = intent.getLongExtra("book_id", -1L)
@@ -713,6 +832,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
                 
                 currentPage = currentBook?.currentPage ?: 0
+                epubCurrentPageInChapter = currentBook?.epubCurrentPageInChapter ?: 0
+                epubChapterPagePositions = deserializeEpubPositions(currentBook?.epubChapterPagePositions)
                 currentProgressPercent = currentBook?.progressPercentage ?: 0f
                 ttsSavedPosition = currentBook?.ttsPosition ?: 0
                 loadBook(bookPath)
@@ -726,6 +847,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private suspend fun loadBook(filePath: String) {
         withContext(Dispatchers.Main) {
             binding.loadingProgressBar.visibility = View.VISIBLE
+            binding.pageSlider.visibility = View.GONE
         }
         
         try {
@@ -1073,6 +1195,16 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 Toast.makeText(this, "Invalid chapter", Toast.LENGTH_SHORT).show()
                 return
             }
+
+            if (pendingEpubPageAfterLoad == null) {
+                val savedPage = epubChapterPagePositions[chapterIndex]
+                if (savedPage != null) {
+                    pendingEpubPageAfterLoad = savedPage
+                    epubCurrentPageInChapter = savedPage
+                } else {
+                    epubCurrentPageInChapter = 0
+                }
+            }
             
             lifecycleScope.launch(Dispatchers.IO) {
                 try {
@@ -1104,6 +1236,16 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                                     null
                                 )
                                 
+                                // After loading HTML, initialize pagination (CSS columns) and compute pages.
+                                // We post a short delay to allow WebView to finish rendering before measuring.
+                                binding.webView.postDelayed({
+                                    try {
+                                        initEpubPagination()
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }, 300)
+
                                 binding.webView.animate()
                                     .alpha(1f)
                                     .setDuration(150)
@@ -1112,7 +1254,13 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             .start()
                         
                         currentEpubChapter = chapterIndex
+                        // Keep book-level currentPage (chapter index) for persistence as before
                         currentPage = chapterIndex
+                        // Reset per-chapter pagination state; reuse saved value unless a pending jump already exists
+                        if (pendingEpubPageAfterLoad == null) {
+                            epubCurrentPageInChapter = epubChapterPagePositions[chapterIndex] ?: 0
+                        }
+                        epubPageCount = 0
                         currentTextContent = chapterHtml // Store for TTS
                         
                         // Reset TTS state when chapter changes
@@ -1169,10 +1317,131 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             </html>
         """.trimIndent()
     }
+
+    /**
+     * Initialize EPUB pagination by applying CSS column layout and measuring the number of "pages"
+     * (columns) for the currently loaded chapter. This is a per-chapter pagination strategy.
+     */
+    private fun initEpubPagination() {
+        try {
+            val js = """
+                (function() {
+                    try {
+                        document.documentElement.style.overflow = 'hidden';
+                        // Make the body flow into columns equal to the viewport width
+                        var pageWidth = window.innerWidth;
+                        document.body.style.webkitColumnGap = '0px';
+                        document.body.style.columnGap = '0px';
+                        document.body.style.webkitColumnWidth = pageWidth + 'px';
+                        document.body.style.columnWidth = pageWidth + 'px';
+                        document.body.style.webkitColumnFill = 'auto';
+                        document.documentElement.style.margin = '0';
+                        document.body.style.margin = '0';
+                        document.body.style.padding = '0';
+                        // Force reflow and compute total width
+                        var totalWidth = Math.max(document.body.scrollWidth, document.documentElement.scrollWidth);
+                        var pageCount = Math.max(1, Math.ceil(totalWidth / pageWidth));
+                        return pageCount;
+                    } catch(e) { return 1; }
+                })();
+            """.trimIndent()
+
+            binding.webView.evaluateJavascript(js) { result ->
+                try {
+                    val cleaned = result?.replace("\"", "") ?: "1"
+                    val count = cleaned.toIntOrNull() ?: 1
+                    epubPageCount = count
+
+                    // If there's a pending request to jump to a specific page after load, honor it
+                    if (pendingEpubPageAfterLoad != null) {
+                        val requested = pendingEpubPageAfterLoad!!
+                        val target = if (requested == -1) epubPageCount - 1 else requested
+                        epubCurrentPageInChapter = target.coerceIn(0, maxOf(0, epubPageCount - 1))
+                        pendingEpubPageAfterLoad = null
+                    } else {
+                        // Ensure current page index is in range
+                        if (epubCurrentPageInChapter < 0) epubCurrentPageInChapter = 0
+                        if (epubCurrentPageInChapter >= epubPageCount) epubCurrentPageInChapter = epubPageCount - 1
+                    }
+
+                    updatePageSliderConfiguration()
+                    // Scroll to current page
+                    gotoEpubPage(epubCurrentPageInChapter)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    epubPageCount = 0
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            epubPageCount = 0
+        }
+    }
+
+    /** Scroll the WebView horizontally to the given page index (0-based) within the current chapter. */
+    private fun gotoEpubPage(pageIndex: Int) {
+        val safeIndex = when {
+            epubPageCount <= 0 -> 0
+            pageIndex < 0 -> 0
+            pageIndex >= epubPageCount -> epubPageCount - 1
+            else -> pageIndex
+        }
+
+        val js = """
+            (function() {
+                try {
+                    var page = $safeIndex;
+                    var x = page * window.innerWidth;
+                    window.scrollTo(x, 0);
+                    return true;
+                } catch(e) { return false; }
+            })();
+        """.trimIndent()
+
+        binding.webView.evaluateJavascript(js) { _ ->
+            epubCurrentPageInChapter = safeIndex
+
+            // Update page indicator using per-chapter pages
+            updatePageIndicator(epubCurrentPageInChapter + 1, epubPageCount)
+            syncPageSliderValue()
+            persistEpubProgress()
+        }
+    }
     
     private fun parseEpubToc(zipFile: java.util.zip.ZipFile) {
         // This method is now deprecated - TOC is parsed by EpubParser
         // Keeping for compatibility but it does nothing
+    }
+
+    private fun deserializeEpubPositions(serialized: String?): MutableMap<Int, Int> {
+        if (serialized.isNullOrBlank()) {
+            return mutableMapOf()
+        }
+
+        return try {
+            val json = JSONObject(serialized)
+            val map = mutableMapOf<Int, Int>()
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val chapter = key.toIntOrNull()
+                if (chapter != null) {
+                    map[chapter] = json.optInt(key, 0)
+                }
+            }
+            map
+        } catch (e: JSONException) {
+            e.printStackTrace()
+            mutableMapOf()
+        }
+    }
+
+    private fun serializeEpubPositions(): String {
+        val json = JSONObject()
+        epubChapterPagePositions.forEach { (chapter, page) ->
+            json.put(chapter.toString(), page)
+        }
+        return json.toString()
     }
     
     private suspend fun loadMobi(file: File) {
@@ -1984,10 +2253,28 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 Toast.makeText(this, "Already at first page", Toast.LENGTH_SHORT).show()
             }
         } else if (epubContent != null) {
-            if (currentEpubChapter > 0) {
-                renderEpubChapter(currentEpubChapter - 1)
+            // If EPUB pagination is initialized use page-based navigation within chapter
+            if (epubPageCount > 0) {
+                if (epubCurrentPageInChapter > 0) {
+                    epubCurrentPageInChapter--
+                    gotoEpubPage(epubCurrentPageInChapter)
+                } else {
+                    // At first page of chapter, try to go to previous chapter's last page
+                    if (currentEpubChapter > 0) {
+                        // Request that after the previous chapter loads we jump to its last page
+                        pendingEpubPageAfterLoad = -1
+                        renderEpubChapter(currentEpubChapter - 1)
+                    } else {
+                        Toast.makeText(this, "Already at first chapter", Toast.LENGTH_SHORT).show()
+                    }
+                }
             } else {
-                Toast.makeText(this, "Already at first chapter", Toast.LENGTH_SHORT).show()
+                // Fallback to chapter navigation
+                if (currentEpubChapter > 0) {
+                    renderEpubChapter(currentEpubChapter - 1)
+                } else {
+                    Toast.makeText(this, "Already at first chapter", Toast.LENGTH_SHORT).show()
+                }
             }
         } else {
             Toast.makeText(this, "Page navigation not available for this format", Toast.LENGTH_SHORT).show()
@@ -2010,10 +2297,26 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 Toast.makeText(this, "Already at last page", Toast.LENGTH_SHORT).show()
             }
         } else if (epubContent != null) {
-            if (currentEpubChapter < epubContent!!.spine.size - 1) {
-                renderEpubChapter(currentEpubChapter + 1)
+            // If EPUB pagination is initialized use page-based navigation within chapter
+            if (epubPageCount > 0) {
+                if (epubCurrentPageInChapter < epubPageCount - 1) {
+                    epubCurrentPageInChapter++
+                    gotoEpubPage(epubCurrentPageInChapter)
+                } else {
+                    // At last page of chapter, advance to next chapter and stay at its first page
+                    if (currentEpubChapter < epubContent!!.spine.size - 1) {
+                        renderEpubChapter(currentEpubChapter + 1)
+                    } else {
+                        Toast.makeText(this, "Already at last chapter", Toast.LENGTH_SHORT).show()
+                    }
+                }
             } else {
-                Toast.makeText(this, "Already at last chapter", Toast.LENGTH_SHORT).show()
+                // Fallback to chapter navigation
+                if (currentEpubChapter < epubContent!!.spine.size - 1) {
+                    renderEpubChapter(currentEpubChapter + 1)
+                } else {
+                    Toast.makeText(this, "Already at last chapter", Toast.LENGTH_SHORT).show()
+                }
             }
         } else {
             Toast.makeText(this, "Page navigation not available for this format", Toast.LENGTH_SHORT).show()
@@ -2024,10 +2327,18 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         currentBook?.let { book ->
             lifecycleScope.launch {
                 try {
+                    val bookmarkPage = when {
+                        epubContent != null -> currentEpubChapter
+                        else -> currentPage
+                    }
+                    val bookmarkPosition = when {
+                        epubContent != null -> epubCurrentPageInChapter
+                        else -> 0
+                    }
                     val bookmark = com.rifters.ebookreader.model.Bookmark(
                         bookId = book.id,
-                        page = currentPage,
-                        position = 0,
+                        page = bookmarkPage,
+                        position = bookmarkPosition,
                         timestamp = System.currentTimeMillis()
                     )
                     
@@ -2080,6 +2391,58 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             Toast.makeText(this, "No book loaded", Toast.LENGTH_SHORT).show()
         }
     }
+
+    private fun showGoToPageDialog() {
+        if (epubContent == null) {
+            Toast.makeText(this, getString(R.string.epub_only_action), Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        if (epubPageCount <= 0) {
+            Toast.makeText(this, getString(R.string.epub_pagination_not_ready), Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val density = resources.displayMetrics.density
+        val horizontalPadding = (24 * density).toInt()
+        val verticalPadding = (12 * density).toInt()
+
+        val container = FrameLayout(this).apply {
+            setPadding(horizontalPadding, verticalPadding, horizontalPadding, 0)
+        }
+
+        val inputLayout = TextInputLayout(this).apply {
+            hint = getString(R.string.page_number_hint)
+        }
+
+        val editText = TextInputEditText(inputLayout.context).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            val currentDisplayPage = (epubCurrentPageInChapter + 1).coerceAtLeast(1)
+            setText(currentDisplayPage.toString())
+            setSelection(text?.length ?: 0)
+        }
+
+        inputLayout.addView(editText)
+        container.addView(inputLayout)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.go_to_page)
+            .setView(container)
+            .setPositiveButton(R.string.go_to_page) { _, _ ->
+                val pageValue = editText.text?.toString()?.trim()?.toIntOrNull()
+                if (pageValue == null || pageValue < 1 || pageValue > epubPageCount) {
+                    Toast.makeText(
+                        this,
+                        getString(R.string.invalid_page_number, epubPageCount),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    gotoEpubPage(pageValue - 1)
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
     
     private fun navigateToHighlight(highlight: com.rifters.ebookreader.model.Highlight) {
         if (pdfRenderer != null && totalPdfPages > 0) {
@@ -2105,6 +2468,27 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     getString(R.string.page_format, highlight.page + 1),
                     Toast.LENGTH_SHORT
                 ).show()
+            } else {
+                Toast.makeText(this, "Invalid page number", Toast.LENGTH_SHORT).show()
+            }
+        } else if (epubContent != null) {
+            val chapterIndex = highlight.page
+            if (chapterIndex in 0 until epubContent!!.spine.size) {
+                pendingEpubPageAfterLoad = highlight.position
+                renderEpubChapter(chapterIndex)
+                if (highlight.position >= 0) {
+                    Toast.makeText(
+                        this,
+                        getString(R.string.page_format, highlight.position + 1),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    Toast.makeText(
+                        this,
+                        getString(R.string.chapter_format, chapterIndex + 1),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             } else {
                 Toast.makeText(this, "Invalid page number", Toast.LENGTH_SHORT).show()
             }
@@ -2141,6 +2525,27 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     getString(R.string.page_format, bookmark.page + 1),
                     Toast.LENGTH_SHORT
                 ).show()
+            } else {
+                Toast.makeText(this, "Invalid page number", Toast.LENGTH_SHORT).show()
+            }
+        } else if (epubContent != null) {
+            val chapterIndex = bookmark.page
+            if (chapterIndex in 0 until epubContent!!.spine.size) {
+                pendingEpubPageAfterLoad = bookmark.position
+                renderEpubChapter(chapterIndex)
+                if (bookmark.position >= 0) {
+                    Toast.makeText(
+                        this,
+                        getString(R.string.page_format, bookmark.position + 1),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    Toast.makeText(
+                        this,
+                        getString(R.string.chapter_format, chapterIndex + 1),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             } else {
                 Toast.makeText(this, "Invalid page number", Toast.LENGTH_SHORT).show()
             }

@@ -85,6 +85,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var ttsSavedPosition: Int = 0
     private var pendingTtsAutoContinue = false
     private var pendingTtsPlayAfterPreparation = false
+    private var isTtsSelectionEnabled = false
 
     private data class TtsChunk(
         val text: String,
@@ -287,7 +288,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     /**
      * Highlight the current TTS chunk being read in the WebView
      */
-    private fun highlightCurrentChunk() {
+    private fun highlightCurrentChunk(scrollToCenter: Boolean = false) {
         if (binding.webView.visibility != View.VISIBLE || ttsChunks.isEmpty()) {
             return
         }
@@ -297,6 +298,11 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
         
         val paragraphIndex = ttsChunks[currentTtsChunkIndex].paragraphIndex
+        val scrollCommand = if (scrollToCenter) {
+            "target.scrollIntoView({ behavior: 'smooth', block: 'center' });"
+        } else {
+            ""
+        }
 
         binding.webView.evaluateJavascript(
             """
@@ -308,7 +314,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 var target = document.querySelector('[data-tts-chunk="$paragraphIndex"]');
                 if (target) {
                     target.classList.add('tts-highlight');
-                    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    $scrollCommand
                 }
             })();
             """.trimIndent(),
@@ -614,6 +620,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
 
         val usingWebView = binding.webView.visibility == View.VISIBLE
+        isTtsSelectionEnabled = true
 
         if (usingWebView) {
             if (ttsChunks.isEmpty()) {
@@ -643,6 +650,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
             if (textToSpeak.trim().isEmpty()) {
                 Toast.makeText(this, "Could not extract readable text from content. The file may be empty or corrupted.", Toast.LENGTH_LONG).show()
+                isTtsSelectionEnabled = false
                 return
             }
 
@@ -660,6 +668,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
             if (ttsChunks.isEmpty()) {
                 Toast.makeText(this, "Could not split text for TTS reading", Toast.LENGTH_SHORT).show()
+                isTtsSelectionEnabled = false
                 return
             }
         }
@@ -689,6 +698,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // Finished reading all chunks
             android.util.Log.d("ViewerActivity", "Finished reading all TTS chunks")
             isTtsPlaying = false
+            isTtsSelectionEnabled = false
             updateTtsButtons()
             Toast.makeText(this, "Finished reading", Toast.LENGTH_SHORT).show()
             return
@@ -719,7 +729,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 updateTtsButtons()
                 updateTtsProgress()
                 // Highlight the text being read
-                highlightCurrentChunk()
+                highlightCurrentChunk(scrollToCenter = true)
             }
             TextToSpeech.ERROR -> {
                 android.util.Log.e("ViewerActivity", "TTS speak returned ERROR")
@@ -751,6 +761,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         isTtsPlaying = false
         pendingTtsAutoContinue = false
         pendingTtsPlayAfterPreparation = false
+        isTtsSelectionEnabled = false
         // Reset chunks so they'll be regenerated on next play
         ttsChunks = emptyList()
         currentTtsChunkIndex = 0
@@ -778,6 +789,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         pendingTtsPlayAfterPreparation = false
         currentTtsChunkIndex = 0
         ttsSavedPosition = 0 // Reset saved position for new content
+    isTtsSelectionEnabled = false
         
         // Remove any existing highlights
         removeTextHighlights()
@@ -842,12 +854,14 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
                     if (paragraphs.isEmpty()) {
                         ttsChunks = emptyList()
+                        isTtsSelectionEnabled = false
                         updateTtsButtons()
                         return@runOnUiThread
                     }
 
                     ttsChunks = buildChunksFromParagraphs(paragraphs)
                     if (ttsChunks.isEmpty()) {
+                        isTtsSelectionEnabled = false
                         updateTtsButtons()
                         return@runOnUiThread
                     }
@@ -865,7 +879,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         speakCurrentChunk()
                     } else if (isTtsPlaying) {
                         speakCurrentChunk()
-                    } else {
+                    } else if (isTtsSelectionEnabled) {
                         highlightCurrentChunk()
                     }
                 } catch (e: JSONException) {
@@ -881,6 +895,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     return@runOnUiThread
                 }
 
+                if (!isTtsSelectionEnabled) {
+                    return@runOnUiThread
+                }
+
                 val targetIndex = ttsChunks.indexOfFirst { it.paragraphIndex == index }
                 if (targetIndex == -1) {
                     return@runOnUiThread
@@ -888,14 +906,13 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
                 currentTtsChunkIndex = targetIndex
                 ttsSavedPosition = ttsChunks[targetIndex].startPosition
-                highlightCurrentChunk()
                 updateTtsProgress()
 
                 if (isTtsPlaying) {
                     textToSpeech?.stop()
                     speakCurrentChunk()
                 } else {
-                    Toast.makeText(this@ViewerActivity, "Ready to play from tapped paragraph", Toast.LENGTH_SHORT).show()
+                    highlightCurrentChunk()
                 }
             }
         }

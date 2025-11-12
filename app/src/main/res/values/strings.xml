@@ -235,6 +235,15 @@
     <string name="no_replacements">No replacements configured</string>
     <string name="manage_replacements">Manage Replacements</string>
     <string name="replacement_examples">Examples:\nit\'s → it is\ncan\'t → cannot\n*[?!] → . (regex)</string>
+    <string name="tts_replacements_summary_empty">No replacements configured yet.</string>
+    <string name="tts_replacements_disabled_summary">Replacements are disabled.</string>
+    <string name="tts_replacements_manage_empty">No replacements saved yet. Tap “Add Replacement” to create one.</string>
+    <string name="replacement_saved">Replacement saved</string>
+    <string name="replacement_deleted">Replacement deleted</string>
+    <plurals name="tts_replacements_summary">
+        <item quantity="one">1 replacement configured</item>
+        <item quantity="other">%d replacements configured</item>
+    </plurals>
     
     <!-- OAuth Activities -->
     <string name="google_sign_in">Google Sign-In</string>

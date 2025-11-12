@@ -47,6 +47,7 @@ class TtsControlsBottomSheet : BottomSheetDialogFragment() {
         binding.ttsPitchValue.text = String.format("%.1fx", ttsPitch)
         
         binding.switchReplacements.isChecked = replacementsEnabled
+        updateReplacementsSummary()
     }
     
     private fun setupListeners() {
@@ -71,6 +72,7 @@ class TtsControlsBottomSheet : BottomSheetDialogFragment() {
         // Replacements toggle
         binding.switchReplacements.setOnCheckedChangeListener { _, isChecked ->
             preferencesManager.setTtsReplacementsEnabled(isChecked)
+            updateReplacementsSummary()
         }
         
         // Manage replacements button
@@ -94,6 +96,18 @@ class TtsControlsBottomSheet : BottomSheetDialogFragment() {
         val replacements = com.rifters.ebookreader.util.TtsReplacementProcessor.getReplacementsList(
             preferencesManager.getTtsReplacements()
         )
+
+        if (replacements.isEmpty()) {
+            android.app.AlertDialog.Builder(requireContext())
+                .setTitle(R.string.tts_replacements)
+                .setMessage(R.string.tts_replacements_manage_empty)
+                .setPositiveButton(R.string.add_replacement) { _, _ ->
+                    showEditReplacementDialog("", "")
+                }
+                .setNegativeButton(R.string.close, null)
+                .show()
+            return
+        }
         
         val items = replacements.map { "${it.first} → ${it.second}" }.toTypedArray()
         
@@ -140,7 +154,8 @@ class TtsControlsBottomSheet : BottomSheetDialogFragment() {
                     )
                     
                     preferencesManager.setTtsReplacements(replacementsJson)
-                    android.widget.Toast.makeText(requireContext(), "Replacement saved", android.widget.Toast.LENGTH_SHORT).show()
+                    updateReplacementsSummary()
+                    android.widget.Toast.makeText(requireContext(), getString(R.string.replacement_saved), android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
             .setNegativeButton(R.string.cancel, null)
@@ -152,11 +167,30 @@ class TtsControlsBottomSheet : BottomSheetDialogFragment() {
                     preferencesManager.getTtsReplacements(), key
                 )
                 preferencesManager.setTtsReplacements(replacementsJson)
-                android.widget.Toast.makeText(requireContext(), "Replacement deleted", android.widget.Toast.LENGTH_SHORT).show()
+                updateReplacementsSummary()
+                android.widget.Toast.makeText(requireContext(), getString(R.string.replacement_deleted), android.widget.Toast.LENGTH_SHORT).show()
             }
         }
         
         builder.show()
+    }
+
+    private fun updateReplacementsSummary() {
+        val enabled = preferencesManager.isTtsReplacementsEnabled()
+        if (!enabled) {
+            binding.textReplacementsSummary.text = getString(R.string.tts_replacements_disabled_summary)
+            return
+        }
+
+        val count = com.rifters.ebookreader.util.TtsReplacementProcessor
+            .getReplacementsList(preferencesManager.getTtsReplacements())
+            .size
+
+        binding.textReplacementsSummary.text = if (count > 0) {
+            resources.getQuantityString(R.plurals.tts_replacements_summary, count, count)
+        } else {
+            getString(R.string.tts_replacements_summary_empty)
+        }
     }
     
     fun setOnSettingsChangedListener(listener: (Float, Float) -> Unit) {

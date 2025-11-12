@@ -1,6 +1,8 @@
 package com.rifters.ebookreader.util
 
+import android.util.Log
 import org.json.JSONObject
+import java.util.Locale
 
 /**
  * Utility class for processing TTS text replacements.
@@ -25,49 +27,54 @@ object TtsReplacementProcessor {
         
         try {
             val replacements = JSONObject(replacementsJson)
+            val systemReplacements = mutableListOf<Pair<String, String>>()
+            val regexReplacements = mutableListOf<Pair<Regex, String>>()
+            val literalReplacements = mutableListOf<Pair<Regex, String>>()
+
             val keys = replacements.keys()
-            
-            // First pass: System replacements (tokens wrapped in < >)
             while (keys.hasNext()) {
                 val key = keys.next()
-                val value = replacements.getString(key)
-                
-                if (key.startsWith("<") && key.endsWith(">")) {
-                    processedText = processedText.replace(key, value)
-                }
-            }
-            
-            // Second pass: Regular replacements and regex patterns
-            val keys2 = replacements.keys()
-            while (keys2.hasNext()) {
-                val key = keys2.next()
-                val value = replacements.getString(key)
-                
-                // Skip system replacements and disabled entries
-                if (key.startsWith("<") && key.endsWith(">")) {
+                if (key.isEmpty() || key.startsWith("#")) {
                     continue
                 }
-                if (key.startsWith("#")) {
-                    continue  // Disabled entry
-                }
-                
-                // Check if it's a regex pattern (starts with *)
-                if (key.startsWith("*")) {
-                    val pattern = key.substring(1)  // Remove the * prefix
-                    try {
-                        processedText = processedText.replace(Regex(pattern), value)
-                    } catch (e: Exception) {
-                        // Invalid regex, skip
-                        android.util.Log.w("TtsReplacements", "Invalid regex pattern: $pattern", e)
+
+                val value = replacements.optString(key, "")
+
+                when {
+                    key.startsWith("<") && key.endsWith(">") -> {
+                        systemReplacements += key to value
                     }
-                } else {
-                    // Simple string replacement
-                    processedText = processedText.replace(key, value)
+                    key.startsWith("*") -> {
+                        val pattern = key.substring(1)
+                        try {
+                            val regex = Regex(pattern, setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE))
+                            regexReplacements += regex to value
+                        } catch (e: Exception) {
+                            Log.w("TtsReplacements", "Invalid regex pattern: $pattern", e)
+                        }
+                    }
+                    else -> {
+                        val regex = Regex(Regex.escape(key), setOf(RegexOption.IGNORE_CASE))
+                        literalReplacements += regex to value
+                    }
                 }
             }
-            
+
+            systemReplacements.forEach { (key, value) ->
+                processedText = processedText.replace(key, value)
+            }
+
+            regexReplacements.forEach { (regex, value) ->
+                processedText = regex.replace(processedText, value)
+            }
+
+            literalReplacements.forEach { (regex, value) ->
+                processedText = regex.replace(processedText) { matchResult ->
+                    applyReplacementCase(matchResult.value, value)
+                }
+            }
         } catch (e: Exception) {
-            android.util.Log.e("TtsReplacements", "Error applying replacements", e)
+            Log.e("TtsReplacements", "Error applying replacements", e)
             return text  // Return original text on error
         }
         
@@ -102,7 +109,7 @@ object TtsReplacementProcessor {
                 list.add(Pair(key, value))
             }
         } catch (e: Exception) {
-            android.util.Log.e("TtsReplacements", "Error parsing replacements", e)
+            Log.e("TtsReplacements", "Error parsing replacements", e)
         }
         
         return list.sortedBy { it.first }
@@ -122,7 +129,7 @@ object TtsReplacementProcessor {
             replacements.put(key, value)
             replacements.toString()
         } catch (e: Exception) {
-            android.util.Log.e("TtsReplacements", "Error adding replacement", e)
+            Log.e("TtsReplacements", "Error adding replacement", e)
             replacementsJson
         }
     }
@@ -136,8 +143,29 @@ object TtsReplacementProcessor {
             replacements.remove(key)
             replacements.toString()
         } catch (e: Exception) {
-            android.util.Log.e("TtsReplacements", "Error removing replacement", e)
+            Log.e("TtsReplacements", "Error removing replacement", e)
             replacementsJson
+        }
+    }
+
+    private fun applyReplacementCase(original: String, replacement: String): String {
+        if (replacement.isEmpty()) {
+            return replacement
+        }
+
+        val hasLetters = original.any { it.isLetter() }
+        if (!hasLetters) {
+            return replacement
+        }
+
+        val locale = Locale.getDefault()
+
+        return when {
+            original.all { it.isUpperCase() || !it.isLetter() } -> replacement.uppercase(locale)
+            original.all { it.isLowerCase() || !it.isLetter() } -> replacement
+            original.first().isUpperCase() && original.drop(1).all { !it.isLetter() || it.isLowerCase() } ->
+                replacement.replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() }
+            else -> replacement
         }
     }
 }

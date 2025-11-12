@@ -22,6 +22,9 @@ import androidx.lifecycle.lifecycleScope
 import com.github.junrar.Archive
 import com.github.junrar.rarfile.FileHeader
 import com.rifters.ebookreader.databinding.ActivityViewerBinding
+import com.rifters.ebookreader.pagination.PaginationManager
+import com.rifters.ebookreader.pagination.PaginationPreferencesKey
+import com.rifters.ebookreader.pagination.PaginationSnapshot
 import com.rifters.ebookreader.model.Bookmark
 import com.rifters.ebookreader.model.LayoutMode
 import com.rifters.ebookreader.model.ReadingPreferences
@@ -99,6 +102,11 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     // Table of Contents
     private var tableOfContents: List<com.rifters.ebookreader.model.TableOfContentsItem> = emptyList()
     
+    // Pagination support
+    private val paginationManager by lazy { PaginationManager(this) }
+    private var paginationPreferencesKey: PaginationPreferencesKey? = null
+    private var paginationBookIdentifier: String? = null
+    
     // Night mode state (separate from theme for toggle functionality)
     private var isNightModeEnabled = false
     
@@ -120,7 +128,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         
         // Apply saved theme on activity load
         val preferences = preferencesManager.getReadingPreferences()
-    currentLayoutMode = preferences.layoutMode
+        currentLayoutMode = preferences.layoutMode
+        updatePaginationPreferences(preferences)
         applyThemeToUI(preferences)
         
         loadBookFromIntent()
@@ -426,6 +435,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private fun onWebViewContentReady() {
         val preferences = preferencesManager.getReadingPreferences()
         currentLayoutMode = preferences.layoutMode
+        updatePaginationPreferences(preferences)
         applyWebViewStyles(preferences)
         if (isNightModeEnabled) {
             applyNightModeToWebView()
@@ -1058,6 +1068,13 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val bookTitle = intent.getStringExtra("book_title")
         
         supportActionBar?.title = bookTitle
+
+        paginationBookIdentifier = when {
+            bookId != -1L -> "book:$bookId"
+            !bookPath.isNullOrBlank() -> "path:${File(bookPath).absolutePath}"
+            else -> null
+        }
+        paginationManager.clear()
         
         if (bookPath != null) {
             lifecycleScope.launch {
@@ -1084,6 +1101,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         withContext(Dispatchers.Main) {
             binding.loadingProgressBar.visibility = View.VISIBLE
             binding.pageSlider.visibility = View.GONE
+            renderPaginationStatus(null)
         }
         
         try {
@@ -1369,6 +1387,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
                 
                 withContext(Dispatchers.Main) {
+                    ensurePaginationInitializedForEpub()
                     binding.apply {
                         loadingProgressBar.visibility = View.GONE
                         pdfImageView.visibility = View.GONE
@@ -1427,6 +1446,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 Toast.makeText(this, "Invalid chapter", Toast.LENGTH_SHORT).show()
                 return
             }
+
+            ensurePaginationInitializedForEpub()
+            renderPaginationStatus(null)
 
             if (pendingEpubPageAfterLoad == null) {
                 val savedPage = epubChapterPagePositions[chapterIndex]
@@ -1637,6 +1659,9 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     val count = parsePageCount(result)
                     epubPageCount = count
 
+                    ensurePaginationInitializedForEpub()
+                    paginationManager.updateChapterPageCount(currentEpubChapter, epubPageCount)
+
                     if (pendingEpubPageAfterLoad != null) {
                         val requested = pendingEpubPageAfterLoad!!
                         val target = if (requested == -1) epubPageCount - 1 else requested
@@ -1722,10 +1747,13 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
                 epubPageCount = newCount
                 epubCurrentPageInChapter = newPage
+                ensurePaginationInitializedForEpub()
+                paginationManager.updateChapterPageCount(currentEpubChapter, epubPageCount)
                 updatePageSliderConfiguration()
                 updatePageIndicator(epubCurrentPageInChapter + 1, epubPageCount)
                 syncPageSliderValue()
                 persistEpubProgress()
+                updatePaginationSnapshot(tableOfContents.getOrNull(currentEpubChapter)?.title)
             } catch (e: Exception) {
                 android.util.Log.w("ViewerActivity", "Failed to sync continuous scroll position", e)
             }
@@ -1773,6 +1801,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             updatePageIndicator(epubCurrentPageInChapter + 1, epubPageCount)
             syncPageSliderValue()
             persistEpubProgress()
+            updatePaginationSnapshot(tableOfContents.getOrNull(currentEpubChapter)?.title)
             if (currentLayoutMode == LayoutMode.CONTINUOUS_SCROLL) {
                 binding.webView.postDelayed(continuousScrollSyncRunnable, 160)
             }
@@ -1814,6 +1843,130 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             json.put(chapter.toString(), page)
         }
         return json.toString()
+    }
+
+    private fun updatePaginationPreferences(preferences: ReadingPreferences) {
+        val newKey = PaginationPreferencesKey.from(preferences)
+        if (newKey == paginationPreferencesKey) {
+            return
+        }
+        paginationPreferencesKey = newKey
+        if (epubContent != null) {
+            ensurePaginationInitializedForEpub()
+            updatePaginationSnapshot()
+        } else if (pdfRenderer != null && totalPdfPages > 0) {
+            updateStaticPaginationSnapshot(currentPage, totalPdfPages)
+        } else if (totalComicPages > 0) {
+            updateStaticPaginationSnapshot(currentPage, totalComicPages)
+        } else {
+            renderPaginationStatus(null)
+        }
+    }
+
+    private fun ensurePaginationInitializedForEpub() {
+        val content = epubContent ?: return
+        if (content.spine.isEmpty()) {
+            return
+        }
+
+        val identifier = paginationBookIdentifier ?: return
+        val key = paginationPreferencesKey
+            ?: PaginationPreferencesKey.from(preferencesManager.getReadingPreferences()).also {
+                paginationPreferencesKey = it
+            }
+
+        paginationManager.initialize(identifier, key, content.spine.size)
+        paginationManager.updateTableOfContents(tableOfContents)
+    }
+
+    private fun updatePaginationSnapshot(explicitTitle: String? = null): PaginationSnapshot? {
+        val content = epubContent ?: return null
+        if (content.spine.isEmpty()) {
+            return null
+        }
+
+        if (paginationBookIdentifier == null) {
+            return null
+        }
+
+        ensurePaginationInitializedForEpub()
+
+        val chapterIndex = currentEpubChapter.coerceIn(0, content.spine.size - 1)
+        val pageIndex = epubCurrentPageInChapter.coerceAtLeast(0)
+        val title = explicitTitle ?: tableOfContents.getOrNull(chapterIndex)?.title
+        val snapshot = paginationManager.updatePosition(chapterIndex, pageIndex, title)
+        renderPaginationStatus(snapshot)
+        return snapshot
+    }
+
+    private fun updateStaticPaginationSnapshot(currentPageIndex: Int, totalPages: Int) {
+        if (totalPages <= 0) {
+            renderPaginationStatus(null)
+            return
+        }
+
+        val identifier = paginationBookIdentifier ?: return
+        val key = paginationPreferencesKey
+            ?: PaginationPreferencesKey.from(preferencesManager.getReadingPreferences()).also {
+                paginationPreferencesKey = it
+            }
+
+        paginationManager.initialize(identifier, key, 1)
+        paginationManager.updateTableOfContents(emptyList())
+        paginationManager.updateChapterPageCount(0, totalPages)
+
+        val safeIndex = currentPageIndex.coerceIn(0, totalPages - 1)
+        val title = currentBook?.title ?: supportActionBar?.title?.toString()
+        val snapshot = paginationManager.updatePosition(0, safeIndex, title)
+        renderPaginationStatus(snapshot)
+    }
+
+    private fun renderPaginationStatus(snapshot: PaginationSnapshot?) {
+        val statusBar = binding.paginationStatusBar
+        if (snapshot == null) {
+            statusBar.visibility = View.GONE
+            return
+        }
+
+        statusBar.visibility = View.VISIBLE
+
+        val rawTitle = snapshot.chapterTitle?.trim()?.takeIf { it.isNotEmpty() }
+        val isSingleSection = snapshot.bookPageCount <= snapshot.chapterPageCount || snapshot.bookPageCount <= 0
+
+        val chapterLabel = when {
+            rawTitle != null && isSingleSection -> rawTitle
+            rawTitle != null -> getString(
+                R.string.pagination_chapter_with_title,
+                snapshot.chapterDisplayIndex,
+                rawTitle
+            )
+            else -> getString(
+                R.string.pagination_chapter_number_only,
+                snapshot.chapterDisplayIndex
+            )
+        }
+
+        binding.paginationChapterText.text = chapterLabel
+        binding.paginationChapterText.visibility = if (chapterLabel.isNotEmpty()) View.VISIBLE else View.GONE
+
+        val chapterPageTotal = snapshot.chapterPageCount.coerceAtLeast(snapshot.chapterDisplayPage)
+        val bookPageTotal = snapshot.bookPageCount.coerceAtLeast(snapshot.bookDisplayPage)
+
+        binding.paginationPagesText.text = if (!isSingleSection && bookPageTotal > 0) {
+            getString(
+                R.string.pagination_pages_dual,
+                snapshot.chapterDisplayPage,
+                chapterPageTotal,
+                snapshot.bookDisplayPage,
+                bookPageTotal
+            )
+        } else {
+            getString(
+                R.string.pagination_pages_single,
+                snapshot.chapterDisplayPage,
+                chapterPageTotal
+            )
+        }
     }
     
     private suspend fun loadMobi(file: File) {
@@ -2578,6 +2731,10 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             
             // Update page indicator
             updatePageIndicator(boundedPage + 1, totalPages)
+
+            if (epubContent == null && totalPages > 0) {
+                updateStaticPaginationSnapshot(boundedPage, totalPages)
+            }
         }
     }
     
@@ -3116,6 +3273,7 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
     
     private fun applyReadingPreferences(preferences: ReadingPreferences) {
+        updatePaginationPreferences(preferences)
         // Apply theme to all UI elements
         applyThemeToUI(preferences)
         currentLayoutMode = preferences.layoutMode

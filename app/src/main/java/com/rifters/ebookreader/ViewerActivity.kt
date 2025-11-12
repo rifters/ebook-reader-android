@@ -3471,7 +3471,22 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         updatePaginationPreferences(preferences)
         // Apply theme to all UI elements
         applyThemeToUI(preferences)
+        
+        // Update layout mode and ViewPager orientation if using ViewPager2
+        val oldLayoutMode = currentLayoutMode
         currentLayoutMode = preferences.layoutMode
+        
+        if (isUsingViewPager && binding.viewPager.visibility == View.VISIBLE) {
+            // Update ViewPager2 orientation based on layout mode
+            when (preferences.layoutMode) {
+                LayoutMode.CONTINUOUS_SCROLL -> {
+                    binding.viewPager.setVerticalMode()
+                }
+                else -> {
+                    binding.viewPager.setHorizontalMode()
+                }
+            }
+        }
         
         // Apply to TextView (for TXT files)
         if (binding.textView.visibility == View.VISIBLE) {

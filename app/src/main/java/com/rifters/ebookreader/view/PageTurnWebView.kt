@@ -41,21 +41,17 @@ class PageTurnWebView @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Let gesture detector handle the event first
-        val handled = gestureDetector.onTouchEvent(event)
-        
         // If page navigation is disabled, use default WebView behavior
         if (!pageNavigationEnabled) {
             return super.onTouchEvent(event)
         }
         
-        // If gesture was handled, consume it
-        // Otherwise, let WebView handle it (for continuous scroll mode)
-        return if (handled) {
-            true
-        } else {
-            super.onTouchEvent(event)
-        }
+        // Let gesture detector check the event
+        gestureDetector.onTouchEvent(event)
+        
+        // Always pass to WebView for scrolling - gesture detector will trigger callbacks
+        // when it detects swipe gestures, but won't block normal scrolling
+        return super.onTouchEvent(event)
     }
 
     private inner class PageTurnGestureListener : GestureDetector.SimpleOnGestureListener() {
@@ -63,8 +59,9 @@ class PageTurnWebView @JvmOverloads constructor(
         private val SWIPE_VELOCITY_THRESHOLD = 100
 
         override fun onDown(e: MotionEvent): Boolean {
-            // Return true to indicate we want to handle gestures
-            return true
+            // Return false to allow WebView to handle scrolling
+            // We only handle specific gestures (flings and taps)
+            return false
         }
 
         override fun onSingleTapConfirmed(e: MotionEvent): Boolean {

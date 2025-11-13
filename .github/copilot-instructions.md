@@ -1,7 +1,133 @@
 # GitHub Copilot Instructions for EBook Reader Android
 
+## 🤖 Quick Start for Copilot Agent
+
+### First Steps When Assigned an Issue
+1. **Read the entire issue description** and all comments carefully
+2. **Check the current build/test status** before making changes:
+   ```bash
+   ./gradlew assembleDebug  # Build the app (takes ~2-3 minutes first time)
+   ./gradlew test           # Run unit tests
+   ./gradlew lint           # Check code style
+   ```
+3. **Explore relevant files** to understand the current implementation
+4. **Ask clarifying questions** if the issue is unclear or scope is too broad
+5. **Plan minimal changes** - prefer small, surgical modifications over large refactors
+
+### When to Ask for Help
+- Issue requirements are ambiguous or conflicting
+- Task requires deep domain knowledge not covered in these instructions
+- Changes would require modifying 10+ files
+- Security implications are unclear
+- Breaking changes to public APIs are needed
+
+### Core Principles
+- ✅ **Make minimal, focused changes** to address the specific issue
+- ✅ **Test changes incrementally** with build and test commands
+- ✅ **Follow existing patterns** in the codebase
+- ✅ **Preserve working functionality** - don't refactor unrelated code
+- ❌ **Never commit secrets** (API keys, passwords, tokens)
+- ❌ **Never delete working tests** unless explicitly required
+- ❌ **Never make large refactors** when a small fix will do
+
+## 📋 Issue Handling Workflow
+
+### Understanding the Issue
+1. **Read carefully**: Review the entire issue description, all comments, and acceptance criteria
+2. **Identify scope**: Determine which files/components are affected
+3. **Check for context**: Look for related issues, PRs, or documentation
+4. **Verify reproducibility**: If it's a bug, understand the steps to reproduce
+
+### Planning Your Changes
+1. **Start small**: Prefer minimal, surgical changes over large refactors
+2. **Reference for Patterns**:Reference @rifters/LibreraReader to find similar patterns and implementions
+3. **Identify patterns**: Look at similar existing implementations in the codebase
+4. **Consider edge cases**: Think about error handling, null safety, empty states
+5. **Plan tests**: Consider what tests need to be added or updated
+
+### Making Changes
+1. **One concern at a time**: Make focused commits for each logical change
+2. **Test continuously**: Build and test after each significant change
+3. **Preserve existing behavior**: Don't break unrelated functionality
+4. **Follow conventions**: Match the style and patterns of surrounding code
+
+### Validating Changes
+1. **Build successfully**: `./gradlew assembleDebug` must pass
+2. **Tests pass**: `./gradlew test` should pass all tests
+3. **Lint clean**: `./gradlew lint` should not introduce new warnings
+4. **Manual testing**: If UI changes, verify in emulator/device
+5. **Edge cases**: Test error conditions, empty states, large datasets
+
+### Completing the Task
+1. **Review your changes**: Read through all modified files
+2. **Update documentation**: If needed, update README or comments
+3. **Check for secrets**: Ensure no API keys or credentials were added
+4. **Verify minimal scope**: Confirm only necessary files were changed
+
+## 🔄 Git and Commit Practices
+
+### Branch Strategy
+- Work on feature branches (Copilot creates `copilot/*` branches automatically)
+- Never commit directly to `main` or `master`
+- Keep branches focused on a single issue or feature
+
+### Commit Guidelines
+- **Write clear commit messages**: Start with a verb (Add, Fix, Update, Remove)
+  - Good: "Fix NPE in BookViewModel when loading empty library"
+  - Good: "Add support for CB7 comic book format"
+  - Bad: "changes", "fix", "update stuff"
+- **Commit frequently**: Small, logical commits are better than large ones
+- **One concern per commit**: Don't mix feature addition with refactoring
+- **No work-in-progress commits**: Each commit should build and pass tests
+
+### What Not to Commit
+- ❌ Build artifacts (`*.apk`, `*.aab`, `/build/`, `/app/build/`)
+- ❌ Generated files (`*.iml`, `.idea/`, `.gradle/`)
+- ❌ Local configuration (`local.properties`, `google-services.json` with real keys)
+- ❌ Test books or large binary files (use `.gitignore`)
+- ❌ Sensitive data (API keys, passwords, tokens)
+- ❌ Personal editor configurations
+
+### Pull Request Best Practices
+- Link to the issue being resolved
+- Describe what changed and why
+- List any breaking changes
+- Note any new dependencies added
+- Confirm all tests pass and app builds successfully
+
 ## Project Overview
 This is an Android eBook reader application that supports multiple formats including PDF, EPUB, MOBI, AZW/AZW3, FB2, DOCX, Markdown, HTML/XML, TXT, and comic book formats (CBZ/CBR/CB7/CBT). The app features a comprehensive book library management system with cloud sync via Firebase, cloud storage integration (Google Drive, Dropbox, OneDrive, FTP/SFTP, WebDAV), collections, tags, reading goals, reading lists, bookmarks, highlights, and text-to-speech support.
+
+## 📁 Repository Structure
+
+### Key Directories
+- `app/src/main/kotlin/com/rifters/ebookreader/` - All Kotlin source code
+  - Root package: Activities, Adapters, Fragments, Dialogs, Data models
+  - `viewmodel/` - ViewModels for MVVM architecture
+  - `database/` - Room database, DAOs, entities
+  - `model/` - Data models and entities
+  - `sync/` - Firebase cloud sync services
+  - `cloud/` - Cloud storage provider implementations
+  - `util/` - Utility classes and parsers
+- `app/src/main/res/` - Android resources (layouts, strings, drawables)
+- `app/build.gradle.kts` - App-level build configuration
+- `.github/` - GitHub configuration and workflows
+
+### Key Files for Common Tasks
+- **UI Changes**: `app/src/main/res/layout/` + corresponding Activity/Fragment
+- **Database Changes**: `database/BookDatabase.kt` (increment version) + DAO + Entity
+- **New Feature**: ViewModel → DAO → Entity → UI (Activity/Fragment)
+- **Book Format Support**: `util/` parsers + `ViewerActivity.kt`
+- **Cloud Integration**: `sync/` or `cloud/` packages
+- **Build Configuration**: `app/build.gradle.kts`
+- **Strings**: `app/src/main/res/values/strings.xml`
+
+### Finding Your Way
+- Search for similar existing implementations first
+- Check ViewModel for business logic
+- Check DAO for database queries
+- Check Activity/Fragment for UI logic
+- Check `util/` for helper functions and parsers
 
 ## Technology Stack
 - **Language**: Kotlin
@@ -259,20 +385,32 @@ com.rifters.ebookreader/
 
 ## Building and Testing
 
-### Build Commands
+### Build Commands (Run These Frequently!)
 ```bash
-# Build debug APK
+# Build debug APK (takes ~2-3 minutes first time, faster afterwards)
 ./gradlew assembleDebug
 
 # Build release APK
 ./gradlew assembleRelease
 
-# Run unit tests
+# Run unit tests (ALWAYS run after code changes)
 ./gradlew test
 
-# Run instrumented tests
+# Run instrumented tests (requires emulator or device)
 ./gradlew connectedAndroidTest
+
+# Run lint checks (check code style and potential issues)
+./gradlew lint
+
+# Clean build (if you encounter build issues)
+./gradlew clean assembleDebug
 ```
+
+### Testing Workflow
+1. **Before making changes**: Run `./gradlew assembleDebug` and `./gradlew test` to ensure baseline is working
+2. **After each change**: Run `./gradlew assembleDebug` to verify code compiles
+3. **After completing feature**: Run `./gradlew test` to verify all tests pass
+4. **Before finalizing**: Run `./gradlew lint` to check code style
 
 ### Testing Guidelines
 - Write unit tests for ViewModels and business logic
@@ -280,6 +418,8 @@ com.rifters.ebookreader/
 - Use Espresso for UI tests
 - Test database operations with Room's testing utilities
 - Mock external dependencies when appropriate
+- **Don't remove existing tests** unless they're explicitly broken by required changes
+- If a test fails, understand why before modifying it
 
 ## Common Tasks
 
@@ -356,11 +496,32 @@ com.rifters.ebookreader/
 - Graceful fallback for unsupported formats
 
 ## Security and Permissions
-- Request permissions at runtime (not just in manifest)
-- Handle permission denial gracefully
-- Use scoped storage for Android 10+
-- Validate user input and file content
-- Don't expose sensitive file paths in logs
+
+### Security Requirements - Critical!
+1. **Never commit sensitive data**: API keys, passwords, tokens, credentials
+   - Use `gradle.properties` (gitignored) for build-time secrets
+   - Use Firebase Remote Config for runtime configuration
+   - Use Android KeyStore for credential storage
+2. **Validate user input**: Sanitize all inputs before processing or storing
+3. **Handle permissions properly**: 
+   - Request at runtime, not just in manifest
+   - Handle denial gracefully with user feedback
+   - Explain why permissions are needed
+4. **Secure cloud storage**: 
+   - Encrypt OAuth tokens using Android KeyStore
+   - Never log credentials or tokens
+   - Use HTTPS for all network requests
+5. **Data protection**:
+   - Don't sync large files over Firebase (metadata only)
+   - Validate file integrity before processing
+   - Handle corrupted files gracefully
+
+### File Access and Storage
+- Use scoped storage for Android 10+ (targetSdk 29+)
+- Use ACTION_OPEN_DOCUMENT for file picking
+- Store books in app-specific directory
+- Validate file formats using FileValidator utility
+- Handle large files (50MB+) with streaming/chunking
 
 ## Performance Considerations
 - Use coroutines for I/O operations
@@ -434,18 +595,100 @@ com.rifters.ebookreader/
 - BitmapCache for efficient image caching
 
 ## What to Avoid
-- Don't use findViewById (use ViewBinding)
-- Don't perform I/O on main thread (use coroutines)
-- Don't hardcode strings in code (use strings.xml)
-- Don't ignore permission checks (especially storage permissions)
+
+### Critical - Never Do These
+- ❌ **Don't use findViewById** (use ViewBinding instead)
+- ❌ **Don't perform I/O on main thread** (use coroutines)
+- ❌ **Don't commit secrets** (API keys, credentials, tokens) to version control
+- ❌ **Don't expose sensitive data** in logs or error messages
+- ❌ **Don't remove working tests** unless explicitly required by the issue
+- ❌ **Don't refactor unrelated code** - stay focused on the issue at hand
+- ❌ **Don't ignore permission checks** (especially storage permissions)
+
+### Best Practices to Follow
+- ✅ Use string resources (strings.xml) for all user-facing text
+- ✅ Handle edge cases and error conditions gracefully
+- ✅ Use coroutines for async operations (viewModelScope in ViewModels)
+- ✅ Follow existing code patterns and architecture
+- ✅ Add proper error handling with user feedback
+- ✅ Test changes incrementally with build commands
+- ✅ Use ViewBinding for all view access
+- ✅ Keep functions small and focused
+
+### Android-Specific
 - Don't create memory leaks with context references in long-lived objects
 - Don't use deprecated APIs when alternatives exist
-- Don't commit sensitive data (API keys, credentials) to version control
 - Don't sync large book files over Firebase (sync metadata only)
 - Don't store plain text passwords (use Android KeyStore)
 - Don't ignore error handling in cloud operations
+- Handle scoped storage properly for Android 10+ (targetSdk 29+)
+- Request runtime permissions, not just manifest declarations
 
 ## Additional Resources
 - Package name: `com.rifters.ebookreader`
 - Namespace: `com.rifters.ebookreader`
 - App name: "EBook Reader"
+
+## 🔧 Troubleshooting Common Issues
+
+### Build Failures
+1. **"Cannot resolve symbol"** or import errors:
+   - Run `./gradlew clean build`
+   - Check if dependency is in `app/build.gradle.kts`
+   - Verify package names and imports
+   
+2. **"Execution failed for task"** during build:
+   - Read the full error message carefully
+   - Check for syntax errors in modified files
+   - Verify Room entities have proper annotations
+   - Check if database version needs increment
+
+3. **Resource not found errors**:
+   - Verify string resources exist in `strings.xml`
+   - Check layout file names match references
+   - Ensure drawable resources exist
+
+### Test Failures
+1. **Unit test fails after changes**:
+   - Understand what the test is checking
+   - Verify your changes don't break the tested behavior
+   - Update test if requirements changed (document why)
+   
+2. **NullPointerException in tests**:
+   - Check for missing mocks or test data
+   - Verify LiveData observers are set up correctly
+   - Check for uninitialized variables
+
+### Runtime Issues
+1. **App crashes on launch**:
+   - Check LogCat for stack traces
+   - Verify database migrations are correct
+   - Check for missing permissions
+   
+2. **Database errors**:
+   - Increment database version after schema changes
+   - Provide migration path or use `fallbackToDestructiveMigration()`
+   - Verify entity relationships are correct
+
+### When Stuck
+1. Search the codebase for similar implementations
+2. Check if there's a utility class for the task
+3. Review related files in the same package
+4. Ask for clarification if requirements are unclear
+5. Break down the task into smaller steps
+
+### Useful Commands for Debugging
+```bash
+# See detailed build output
+./gradlew assembleDebug --info
+
+# Run specific test class
+./gradlew test --tests "BookViewModelTest"
+
+# Check what files changed
+git status
+git diff
+
+# See recent commits
+git log --oneline -10
+```

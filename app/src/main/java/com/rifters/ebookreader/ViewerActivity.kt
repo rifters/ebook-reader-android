@@ -474,6 +474,26 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 binding.webView.postDelayed(continuousScrollSyncRunnable, 120)
             }
         }
+        
+        // Setup page turn gesture listener for EPUB navigation
+        binding.webView.setOnPageTurnListener(object : com.rifters.ebookreader.view.PageTurnWebView.OnPageTurnListener {
+            override fun onNextPage() {
+                nextPage()
+            }
+            
+            override fun onPreviousPage() {
+                previousPage()
+            }
+            
+            override fun onSingleTap() {
+                toggleUIVisibility()
+            }
+        })
+        
+        // Enable/disable page navigation based on layout mode
+        // In continuous scroll mode, allow normal WebView scrolling
+        // In paged modes, enable page turn gestures
+        binding.webView.setPageNavigationEnabled(currentLayoutMode != LayoutMode.CONTINUOUS_SCROLL)
     }
 
     private fun buildChunksFromParagraphs(paragraphs: List<Pair<Int, String>>): List<TtsChunk> {
@@ -828,30 +848,12 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
     
     private fun updateTtsProgress() {
-        if (ttsChunks.isEmpty()) {
-            return
-        }
-        
-        val currentChunk = ttsChunks[currentTtsChunkIndex]
-        val progressPercentage = ((currentTtsChunkIndex + 1) * 100 / ttsChunks.size)
-        
-        // Show progress with text preview (first 50 chars)
-        val preview = if (currentChunk.text.length > 50) {
-            currentChunk.text.substring(0, 50) + "..."
-        } else {
-            currentChunk.text
-        }
-        
-        val progressText = "🔊 $progressPercentage% • $preview"
-        binding.pageIndicator.text = progressText
-        binding.pageIndicator.visibility = View.VISIBLE
+        // TTS progress display removed as requested - users requested removal of visual status bar
+        // TTS highlighting still works and provides sufficient visual feedback
     }
     
     private fun hideTtsProgress() {
-        // Only hide if showing TTS progress (starts with speaker emoji)
-        if (binding.pageIndicator.text.toString().startsWith("🔊")) {
-            binding.pageIndicator.visibility = View.GONE
-        }
+        // TTS progress display removed - no action needed
     }
     
     private fun showTtsControls() {
@@ -3552,6 +3554,8 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         // Apply to WebView (for EPUB files)
         if (binding.webView.visibility == View.VISIBLE) {
             applyWebViewStyles(preferences)
+            // Update page navigation mode based on layout mode
+            binding.webView.setPageNavigationEnabled(preferences.layoutMode != LayoutMode.CONTINUOUS_SCROLL)
             if (epubContent != null) {
                 binding.webView.postDelayed({ initEpubPagination() }, 150)
             }

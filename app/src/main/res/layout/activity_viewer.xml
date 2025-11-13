@@ -56,8 +56,8 @@
             android:layout_height="match_parent"
             android:visibility="gone" />
 
-        <!-- WebView for EPUB content -->
-        <WebView
+        <!-- Custom WebView for EPUB content with gesture support -->
+        <com.rifters.ebookreader.view.PageTurnWebView
             android:id="@+id/webView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"

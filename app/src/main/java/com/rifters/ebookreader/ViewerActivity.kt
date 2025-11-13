@@ -3167,7 +3167,16 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // For PDF files, navigate to the highlighted page
             if (highlight.page in 0 until totalPdfPages) {
                 currentPage = highlight.page
-                renderPdfPage(currentPage)
+                
+                // Check if ViewPager2 is active
+                if (isUsingViewPager && binding.viewPager.visibility == View.VISIBLE) {
+                    // Use ViewPager2 navigation when ViewPager is active
+                    binding.viewPager.setCurrentItem(highlight.page, true)
+                } else {
+                    // Use traditional single-page rendering
+                    renderPdfPage(currentPage)
+                }
+                
                 Toast.makeText(
                     this,
                     getString(R.string.page_format, highlight.page + 1),
@@ -3180,7 +3189,16 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // For comic books (CBZ/CBR), navigate to the highlighted page
             if (highlight.page in 0 until totalComicPages) {
                 currentPage = highlight.page
-                renderComicPage(currentPage)
+                
+                // Check if ViewPager2 is active
+                if (isUsingViewPager && binding.viewPager.visibility == View.VISIBLE) {
+                    // Use ViewPager2 navigation when ViewPager is active
+                    binding.viewPager.setCurrentItem(highlight.page, true)
+                } else {
+                    // Use traditional single-page rendering
+                    renderComicPage(currentPage)
+                }
+                
                 Toast.makeText(
                     this,
                     getString(R.string.page_format, highlight.page + 1),
@@ -3224,7 +3242,16 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // For PDF files, navigate to the bookmarked page
             if (bookmark.page in 0 until totalPdfPages) {
                 currentPage = bookmark.page
-                renderPdfPage(currentPage)
+                
+                // Check if ViewPager2 is active
+                if (isUsingViewPager && binding.viewPager.visibility == View.VISIBLE) {
+                    // Use ViewPager2 navigation when ViewPager is active
+                    binding.viewPager.setCurrentItem(bookmark.page, true)
+                } else {
+                    // Use traditional single-page rendering
+                    renderPdfPage(currentPage)
+                }
+                
                 Toast.makeText(
                     this,
                     getString(R.string.page_format, bookmark.page + 1),
@@ -3237,7 +3264,16 @@ class ViewerActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // For comic books (CBZ/CBR), navigate to the bookmarked page
             if (bookmark.page in 0 until totalComicPages) {
                 currentPage = bookmark.page
-                renderComicPage(currentPage)
+                
+                // Check if ViewPager2 is active
+                if (isUsingViewPager && binding.viewPager.visibility == View.VISIBLE) {
+                    // Use ViewPager2 navigation when ViewPager is active
+                    binding.viewPager.setCurrentItem(bookmark.page, true)
+                } else {
+                    // Use traditional single-page rendering
+                    renderComicPage(currentPage)
+                }
+                
                 Toast.makeText(
                     this,
                     getString(R.string.page_format, bookmark.page + 1),

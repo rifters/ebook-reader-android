@@ -40,9 +40,10 @@
 
 ### Planning Your Changes
 1. **Start small**: Prefer minimal, surgical changes over large refactors
-2. **Identify patterns**: Look at similar existing implementations in the codebase
-3. **Consider edge cases**: Think about error handling, null safety, empty states
-4. **Plan tests**: Consider what tests need to be added or updated
+2. **Reference for Patterns**:Reference @rifters/LibreraReader to find similar patterns and implementions
+3. **Identify patterns**: Look at similar existing implementations in the codebase
+4. **Consider edge cases**: Think about error handling, null safety, empty states
+5. **Plan tests**: Consider what tests need to be added or updated
 
 ### Making Changes
 1. **One concern at a time**: Make focused commits for each logical change
